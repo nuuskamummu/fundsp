@@ -5,6 +5,7 @@ use fundsp::hacker32::*;
 use funutd::dna::*;
 use funutd::*;
 use rayon::prelude::*;
+use fundsp::target_width::*;
 
 struct Specimen {
     pub dna: Dna,
@@ -37,11 +38,11 @@ fn evaluate_reverb(dna: &mut Dna) -> f32 {
 /// Mutate the source Dna. Return the mutated Dna.
 /// The probability of mutating each parameter is `mutation_p`.
 /// Requires interactive mode.
-fn mutate(source: &Dna, seed: u64, mutation_p: f32) -> Dna {
-    let mut rnd = Rnd::from_u64(seed);
-    let mut dna = Dna::new(rnd.u64());
+fn mutate(source: &Dna, seed: TargetU, mutation_p: f32) -> Dna {
+    let mut rnd = rnd_from_target_u(seed);
+    let mut dna = Dna::new(rnd_target_u(&mut rnd));
     let mutate_i = rnd.u32_to(source.parameters() as u32) as usize;
-    let scale = xerp(1.0, (1u64 << 32) as f64, rnd.f64());
+    let scale:TargetF = xerp(1.0, ((1 as TargetU) << 32) as TargetF, rnd_target_f(&mut rnd));
     for i in 0..source.parameters() {
         let parameter = source.parameter(i);
         if i == mutate_i || rnd.f32() < mutation_p {
@@ -51,17 +52,17 @@ fn mutate(source: &Dna, seed: u64, mutation_p: f32) -> Dna {
                         1.0,
                         max(
                             1.0,
-                            min(parameter.maximum() as f64 - parameter.raw() as f64, scale),
+                            min(parameter.maximum() as TargetF - parameter.raw() as TargetF, scale),
                         ),
-                        rnd.f64(),
+                        rnd_target_f(&mut rnd),
                     )
                 } else {
-                    -lerp(1.0, max(1.0, min(parameter.raw() as f64, scale)), rnd.f64())
+                    -lerp(1.0, max(1.0, min(parameter.raw() as TargetF, scale)), rnd_target_f(&mut rnd))
                 };
                 let value = clamp(
                     0.0,
-                    parameter.maximum() as f64,
-                    parameter.raw() as f64 + adjust,
+                    parameter.maximum() as TargetF,
+                    parameter.raw() as TargetF + adjust,
                 );
                 dna.set_value(parameter.hash(), value.round() as u32);
             }
@@ -73,9 +74,9 @@ fn mutate(source: &Dna, seed: u64, mutation_p: f32) -> Dna {
 }
 
 fn main() {
-    let mut rng = Rnd::from_u64(1);
+    let mut rng = rnd_from_target_u(1);
 
-    let mut global_dna = Dna::new(rng.u64());
+    let mut global_dna = Dna::new(rnd_target_u(&mut rng));
     let mut global_fitness = evaluate_reverb(&mut global_dna);
     let mut global_i = 0;
     let mut rounds = 0;
@@ -85,7 +86,7 @@ fn main() {
 
     let mut population = Vec::new();
     for _ in 0..population_size {
-        let mut dna = Dna::new(rng.u64());
+        let mut dna = Dna::new(rnd_target_u(&mut rng));
         let fitness = evaluate_reverb(&mut dna);
         population.push(specimen(dna, fitness));
     }
@@ -97,7 +98,7 @@ fn main() {
 
         let mut seeds = vec![];
         for _ in 0..population_size {
-            seeds.push((rng.u64(), squared(rng.f32())));
+            seeds.push((rnd_target_u(&mut rng), squared(rng.f32())));
         }
         let mut candidates: Vec<Specimen> = seeds
             .par_iter()

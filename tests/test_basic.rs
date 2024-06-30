@@ -13,6 +13,7 @@
 
 use fundsp::audiounit::*;
 use fundsp::hacker::*;
+use fundsp::target_width::*;
 use funutd::*;
 
 /// Check that the stereo generator given is rendered identically
@@ -93,7 +94,7 @@ where
 {
     // The signature constrains the structure already, try some random inputs.
     for _ in 0..1000 {
-        let input = Frame::<f32, X::Inputs>::generate(|_| (rnd.i64() % 3 - 1) as f32);
+        let input = Frame::<f32, X::Inputs>::generate(|_| (rnd_target_i(rnd) % 3 - 1) as f32);
         let output_x = x.tick(&input.clone());
         let output_y = y.tick(&input.clone());
         if output_x != output_y {
@@ -113,8 +114,8 @@ where
     assert!(x.outputs() == 2 && 2 == y.outputs());
 
     for _ in 0..1000 {
-        let input0 = (rnd.u64() & 0xf) as f32;
-        let input1 = (rnd.u64() & 0xf) as f32;
+        let input0 = (rnd_target_u(rnd) & 0xf) as f32;
+        let input1 = (rnd_target_u(rnd) & 0xf) as f32;
         let output_x = x.filter_stereo(input0, input1);
         let output_y = y.filter_stereo(input0, input1);
         if output_x != output_y {
@@ -131,11 +132,11 @@ where
 {
     assert!(x.outputs() <= 8);
 
-    let mut diverged: u64 = 0;
+    let mut diverged: TargetU = 0;
 
     // Send 10 inputs. If none of them diverge, then we declare failure.
     for _ in 0..10 {
-        let input = Frame::<f32, X::Inputs>::generate(|_| (rnd.i64() % 3 - 1) as f32);
+        let input = Frame::<f32, X::Inputs>::generate(|_| (rnd_target_i(rnd) % 3 - 1) as f32);
         let output = x.tick(&input);
         for i in 0..x.outputs() {
             for j in 0..x.outputs() {
@@ -165,13 +166,13 @@ fn test_basic() {
     check_wave(noise() * noise() | busi::<U4, _, _>(|i| mls_bits(10 + i)));
     check_wave(noise() & noise() | sine_hz(440.0) & -noise());
     check_wave(
-        lfo(|t| xerp(110.0, 220.0, clamp01(t))) >> sine()
-            | (envelope(|t| xerp(220.0, 440.0, clamp01(t))) >> pass() >> sine()) & mls(),
+        lfo(|t: TargetF| xerp(110.0, 220.0, clamp01(t))) >> sine()
+            | (envelope(|t: TargetF| xerp(220.0, 440.0, clamp01(t))) >> pass() >> sine()) & mls(),
     );
-    check_wave(dc(1.0) >> lfo2(|t, x| t * x) | dc(1.0) >> envelope2(|t, x| t * x));
+    check_wave(dc(1.0) >> lfo2(|t: TargetF, x| t * x) | dc(1.0) >> envelope2(|t: TargetF, x| t * x));
     check_wave(
-        dc((1.0, 2.0)) >> lfo3(|t, x, y| t * x * y)
-            | dc((1.0, 2.0)) >> envelope3(|t, x, y| t * x * y),
+        dc((1.0, 2.0)) >> lfo3(|t: TargetF, x, y| t * x * y)
+            | dc((1.0, 2.0)) >> envelope3(|t: TargetF, x, y| t * x * y),
     );
     check_wave(dc((110.0, 220.0)) >> multipass() >> -stackf::<U2, _, _>(|f| (f - 0.5) * sine()));
     check_wave(
@@ -205,7 +206,7 @@ fn test_basic() {
     );
     check_wave((noise() >> split::<U16>() >> join()) | (noise() >> split::<U11>() >> join()));
     check_wave_big(Box::new(dc((110.0, 0.5)) >> pulse() * 0.2 >> delay(0.1)));
-    check_wave_big(Box::new(envelope(|t| exp(-t * 10.0))));
+    check_wave_big(Box::new(envelope(|t: TargetF| exp(-t * 10.0))));
 
     let feedback1 = noise()
         >> Net::wrap(Box::new(FeedbackUnit::new(
@@ -263,7 +264,7 @@ fn test_basic() {
     net.check();
     check_wave(net);
 
-    check_wave((noise() | envelope(|t| spline_noise(1, t * 10.0))) >> panner());
+    check_wave((noise() | envelope(|t: TargetF| spline_noise(1, t * 10.0))) >> panner());
     check_wave(impulse::<U2>());
 
     let dc42 = Net::wrap(Box::new(dc(42.)));
@@ -555,7 +556,7 @@ fn test_basic() {
     assert_eq!(inouts(sine_hz(2.0) * 2.0 * 1.0 + 2.0 >> sine()), (0, 1)); // PM (phase modulation) oscillator at `f` Hz with modulation index `m`
     assert_eq!(inouts((pass() ^ mul(2.0)) >> sine() + sine()), (1, 1)); // frequency doubled dual sine oscillator
     assert_eq!(inouts(sine() & mul(2.0) >> sine()), (1, 1)); // frequency doubled dual sine oscillator
-    assert_eq!(inouts(envelope(|t| exp(-t)) * noise()), (0, 1)); // exponentially decaying white noise
+    assert_eq!(inouts(envelope(|t: TargetF| exp(-t)) * noise()), (0, 1)); // exponentially decaying white noise
     assert_eq!(inouts(feedback(delay(0.5) * 0.5)), (1, 1)); // feedback delay of 0.5 seconds
     assert_eq!(
         inouts(sine() & mul(semitone_ratio(4.0)) >> sine() & mul(semitone_ratio(7.0)) >> sine()),
@@ -576,7 +577,7 @@ fn test_basic() {
 fn test_resynth() {
     // Sanity test FFT roundtrip.
     const WINDOW: usize = 16;
-    let mut rnd = Rnd::from_u64(1);
+    let mut rnd = rnd_from_target_u(1);
     let fft_input: [f32; WINDOW] = core::array::from_fn(|_| rnd.f32());
     let mut fft_output = [Complex32::ZERO; WINDOW];
     fft::real_fft(&fft_input, &mut fft_output[0..WINDOW / 2 + 1]);

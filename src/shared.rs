@@ -4,59 +4,15 @@ use super::audionode::*;
 use super::buffer::*;
 use super::combinator::*;
 use super::signal::*;
+use super::target_width::*;
 use super::*;
-use core::sync::atomic::{AtomicU32, AtomicU64};
+use core::sync::atomic::{AtomicU32};
 use numeric_array::typenum::*;
 extern crate alloc;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
-/// A variable floating point number to use as a control.
-pub trait Atomic: Float {
-    type Storage: Send + Sync;
 
-    fn storage(t: Self) -> Self::Storage;
-    fn store(stored: &Self::Storage, t: Self);
-    fn get_stored(stored: &Self::Storage) -> Self;
-}
-
-impl Atomic for f32 {
-    type Storage = AtomicU32;
-
-    fn storage(t: Self) -> Self::Storage {
-        AtomicU32::from(t.to_bits())
-    }
-
-    #[inline]
-    fn store(stored: &Self::Storage, t: Self) {
-        stored.store(t.to_bits(), core::sync::atomic::Ordering::Relaxed);
-    }
-
-    #[inline]
-    fn get_stored(stored: &Self::Storage) -> Self {
-        let u = stored.load(core::sync::atomic::Ordering::Relaxed);
-        f32::from_bits(u)
-    }
-}
-
-impl Atomic for f64 {
-    type Storage = AtomicU64;
-
-    fn storage(t: Self) -> Self::Storage {
-        AtomicU64::from(t.to_bits())
-    }
-
-    #[inline]
-    fn store(stored: &Self::Storage, t: Self) {
-        stored.store(t.to_bits(), core::sync::atomic::Ordering::Relaxed);
-    }
-
-    #[inline]
-    fn get_stored(stored: &Self::Storage) -> Self {
-        let u = stored.load(core::sync::atomic::Ordering::Relaxed);
-        f64::from_bits(u)
-    }
-}
 
 /// A shared float variable that can be accessed from multiple threads.
 #[derive(Default, Clone)]
@@ -121,7 +77,7 @@ impl Var {
 }
 
 impl AudioNode for Var {
-    const ID: u64 = 68;
+    const ID: TargetU = 68;
 
     type Inputs = U0;
     type Outputs = U1;
@@ -137,9 +93,9 @@ impl AudioNode for Var {
         output.channel_mut(0)[..simd_items(size)].fill(F32x::splat(sample.to_f32()));
     }
 
-    fn route(&mut self, _input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, _input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut signal = SignalFrame::new(self.outputs());
-        signal.set(0, Signal::Value(self.value().to_f64()));
+        signal.set(0, Signal::Value(self.value().to_target_f()));
         signal
     }
 }
@@ -176,7 +132,7 @@ where
     R: ConstantFrame<Sample = f32>,
     R::Size: Size<f32>,
 {
-    const ID: u64 = 70;
+    const ID: TargetU = 70;
 
     type Inputs = U0;
     type Outputs = R::Size;
@@ -194,7 +150,7 @@ where
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         // TODO. Should we cache the latest function value and use it as a constant?
         super::signal::Routing::Generator(0.0).route(input, self.outputs())
     }
@@ -204,8 +160,8 @@ where
 #[derive(Clone)]
 pub struct Timer {
     shared: Shared,
-    time: f64,
-    sample_duration: f64,
+    time: TargetF,
+    sample_duration: TargetF,
 }
 
 impl Timer {
@@ -221,7 +177,7 @@ impl Timer {
 }
 
 impl AudioNode for Timer {
-    const ID: u64 = 57;
+    const ID: TargetU = 57;
     type Inputs = U0;
     type Outputs = U0;
 
@@ -230,7 +186,7 @@ impl AudioNode for Timer {
         self.shared.set_value(0.0);
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_duration = 1.0 / sample_rate;
     }
 
@@ -242,11 +198,11 @@ impl AudioNode for Timer {
     }
 
     fn process(&mut self, size: usize, _input: &BufferRef, _output: &mut BufferMut) {
-        self.time += size as f64 * self.sample_duration;
+        self.time += size as TargetF * self.sample_duration;
         self.shared.set_value(self.time as f32);
     }
 
-    fn route(&mut self, _input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, _input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         SignalFrame::new(self.outputs())
     }
 }
@@ -346,7 +302,7 @@ impl<T: Float> AtomicSynth<T> {
 }
 
 impl<T: Float> AudioNode for AtomicSynth<T> {
-    const ID: u64 = 86;
+    const ID: TargetU = 86;
     type Inputs = numeric_array::typenum::U1;
     type Outputs = numeric_array::typenum::U1;
 
@@ -354,12 +310,12 @@ impl<T: Float> AudioNode for AtomicSynth<T> {
         self.phase = self.initial_phase;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate as f32;
         self.sample_duration = 1.0 / sample_rate as f32;
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.initial_phase = super::math::rnd1(hash) as f32;
         self.phase = self.initial_phase;
     }
@@ -374,7 +330,7 @@ impl<T: Float> AudioNode for AtomicSynth<T> {
         Frame::splat(convert(output))
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         super::signal::Routing::Generator(0.0).route(input, self.outputs())
     }
 }

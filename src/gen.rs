@@ -6,6 +6,7 @@ use super::audiounit::*;
 use super::granular::*;
 use super::hacker::*;
 use super::net::*;
+use super::target_width::*;
 extern crate alloc;
 use alloc::boxed::Box;
 use alloc::format;
@@ -118,19 +119,19 @@ pub fn gen_lfo(dna: &mut Dna) -> Box<dyn Generated> {
     dna.group();
     let gen: Box<dyn Generated> = match control {
         0 => {
-            let f = dna.f32_in("Frequency", 0.05, 0.5) as f64;
-            let o = dna.f32("Offset") as f64;
+            let f = dna.f32_in("Frequency", 0.05, 0.5) as TargetF;
+            let o = dna.f32("Offset") as TargetF;
             Box::new(GeneratedLeaf::new(
-                format!("lfo(|t| sin_hz({:?}, t + {:?}) * 0.5 + 0.5)", f, o),
-                move || Box::new(lfo(move |t| sin_hz(f, t + o) * 0.5 + 0.5)),
+                format!("lfo(|t: TargetF| sin_hz({:?}, t + {:?}) * 0.5 + 0.5)", f, o),
+                move || Box::new(lfo(move |t: TargetF| sin_hz(f, t + o) * 0.5 + 0.5)),
             ))
         }
         _ => {
             let seed = dna.u32("Seed");
-            let f = dna.f32_in("Frequency", 0.5, 1.0) as f64;
+            let f = dna.f32_in("Frequency", 0.5, 1.0) as TargetF;
             Box::new(GeneratedLeaf::new(
-                format!("lfo(|t| spline_noise({:?}, t * {:?}) * 0.5 + 0.5)", seed, f),
-                move || Box::new(lfo(move |t| spline_noise(seed as u64, t * f) * 0.5 + 0.5)),
+                format!("lfo(|t: TargetF| spline_noise({:?}, t * {:?}) * 0.5 + 0.5)", seed, f),
+                move || Box::new(lfo(move |t: TargetF| spline_noise(seed as TargetU, t * f) * 0.5 + 0.5)),
             ))
         }
     };
@@ -154,10 +155,10 @@ pub fn gen_effect(dna: &mut Dna) -> Box<dyn AudioUnit> {
     );
 
     match effect {
-        Effect::Flanger => Box::new(flanger(0.9, 0.005, 0.015, |t| {
+        Effect::Flanger => Box::new(flanger(0.9, 0.005, 0.015, |t: f32| {
             lerp11(0.005, 0.015, sin_hz(0.1, t))
         })),
-        Effect::Phaser => Box::new(phaser(0.9, |t| lerp11(0.0, 1.0, sin_hz(0.1, t)))),
+        Effect::Phaser => Box::new(phaser(0.9, |t: f32| lerp11(0.0, 1.0, sin_hz(0.1, t)))),
     }
 }
 
@@ -215,14 +216,14 @@ pub fn gen_granular(
 
     let texture_seed = dna.u32("Texture Seed");
 
-    let grain_length = dna.f32_in("Grain Length", 0.030, 0.100) as f64;
-    let envelope_length = dna.f32_in("Envelope Fraction", 0.333, 0.5) as f64;
+    let grain_length = dna.f32_in("Grain Length", 0.030, 0.100) as TargetF;
+    let envelope_length = dna.f32_in("Envelope Fraction", 0.333, 0.5) as TargetF;
 
     let voices = dna.u32_in("Voices", 12, 42) as usize;
 
-    let inner_radius = dna.f32_in("Inner Radius", 0.03, 0.10) as f64;
-    let outer_radius = dna.f32_in("Outer Radius", 0.13, 0.20) as f64;
-    let jitter = dna.f32_xform("Jitter", |x| xerp(0.0001, 0.0500, x)) as f64;
+    let inner_radius = dna.f32_in("Inner Radius", 0.03, 0.10) as TargetF;
+    let outer_radius = dna.f32_in("Outer Radius", 0.13, 0.20) as TargetF;
+    let jitter = dna.f32_xform("Jitter", |x| xerp(0.0001, 0.0500, x)) as TargetF;
 
     let choice_x = dna.choice(
         "X Channel",
@@ -272,7 +273,7 @@ pub fn gen_granular(
 
     let vibrato_depth = match choice_y {
         ChoiceY::Vibrato => {
-            dna.f32_xform("Vibrato Depth", |x| xerp(semitone_ratio(0.2), 2.0, x * x)) as f64
+            dna.f32_xform("Vibrato Depth", |x| xerp(semitone_ratio(0.2), 2.0, x * x)) as TargetF
         }
         _ => semitone_ratio(0.2),
     };
@@ -344,7 +345,7 @@ pub fn gen_granular(
     };
 
     let create_grain =
-        move |t: f64, _b: f32, v: f32, x: f32, y: f32, z: f32| -> (f32, f32, Box<dyn AudioUnit>) {
+        move |t: TargetF, _b: f32, v: f32, x: f32, y: f32, z: f32| -> (f32, f32, Box<dyn AudioUnit>) {
             let f = if scale_vec.len() > 0 {
                 let d = lerp11(0.0, scale_vec.len() as f32 - 0.01, x);
                 midi_hz(scale_vec[d as usize] + 0.02 * (d - round(d)))
@@ -358,7 +359,7 @@ pub fn gen_granular(
                         1.0,
                         min(
                             vibrato_depth,
-                            xerp11(1.0 / vibrato_depth, vibrato_depth, y as f64),
+                            xerp11(1.0 / vibrato_depth, vibrato_depth, y as TargetF),
                         ),
                     );
                     f * (xerp11(r, 1.0 / r, sin_hz(6.0, t)) as f32)
@@ -457,7 +458,7 @@ pub fn gen_granular(
         voices,
         beat_length,
         beats_per_cycle,
-        texture_seed as u64,
+        texture_seed as TargetU,
         inner_radius as f32,
         outer_radius as f32,
         jitter as f32,

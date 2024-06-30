@@ -4,6 +4,7 @@ use super::audionode::*;
 use super::math::*;
 use super::setting::*;
 use super::signal::*;
+use super::target_width::*;
 use super::*;
 use numeric_array::*;
 
@@ -47,7 +48,7 @@ impl<F: Real, N: Size<f32>> Rez<F, N> {
 }
 
 impl<F: Real, N: Size<f32>> AudioNode for Rez<F, N> {
-    const ID: u64 = 75;
+    const ID: TargetU = 75;
     type Inputs = N;
     type Outputs = typenum::U1;
 
@@ -56,7 +57,7 @@ impl<F: Real, N: Size<f32>> AudioNode for Rez<F, N> {
         self.buf1 = F::zero();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
         self.set_cutoff_q(self.cutoff, self.q);
     }
@@ -88,7 +89,7 @@ impl<F: Real, N: Size<f32>> AudioNode for Rez<F, N> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(0, input.at(0).distort(0.0));
         output

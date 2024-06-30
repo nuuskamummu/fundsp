@@ -3,7 +3,9 @@
 use super::audionode::*;
 use super::math::*;
 use super::signal::*;
+use super::target_width::*;
 use super::*;
+
 use numeric_array::typenum::*;
 
 #[derive(Clone)]
@@ -14,7 +16,7 @@ where
 {
     x: X,
     buffer: Frame<Frame<f32, U128>, X::Outputs>,
-    consumer: f64,
+    consumer: TargetF,
     producer: usize,
 }
 
@@ -25,7 +27,7 @@ where
 {
     /// Create new resampler. Resamples enclosed generator node output(s)
     /// at speed obtained from the input, where 1 is the original speed.
-    pub fn new(sample_rate: f64, mut node: X) -> Self {
+    pub fn new(sample_rate: TargetF, mut node: X) -> Self {
         node.set_sample_rate(sample_rate);
         let hash = node.ping(true, AttoHash::new(Self::ID));
         node.ping(false, hash);
@@ -55,7 +57,7 @@ where
     X: AudioNode<Inputs = U0>,
     X::Outputs: Size<f32> + Size<Frame<f32, U128>>,
 {
-    const ID: u64 = 69;
+    const ID: TargetU = 69;
     // The input is sampling speed where 1 is the original speed.
     type Inputs = U1;
     type Outputs = X::Outputs;
@@ -67,13 +69,13 @@ where
         self.producer = 0;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
     }
 
     #[inline]
     fn tick(&mut self, input: &Frame<f32, Self::Inputs>) -> Frame<f32, Self::Outputs> {
-        self.consumer += max(0.0, input[0]).to_f64();
+        self.consumer += max(0.0, input[0]).to_target_f();
         let d = self.consumer - self.consumer.floor();
         let consumer_i = (self.consumer - d) as usize;
         while consumer_i + 2 >= self.producer {
@@ -95,7 +97,7 @@ where
         output
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         super::signal::Routing::Generator(0.0).route(input, self.outputs())
     }
 

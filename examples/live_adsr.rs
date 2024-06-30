@@ -27,6 +27,7 @@ use fundsp::prelude::AudioUnit;
 use midi_msg::{ChannelVoiceMsg, MidiMsg};
 use midir::{Ignore, MidiInput, MidiInputPort};
 use read_input::prelude::*;
+use fundsp::target_width::*;
 
 /// The `shared()` objects are created in `main()`. They are cloned when passed to `run_output()` so
 /// as not to lose ownership. But as with other Rust types intended for sharing between threads
@@ -166,7 +167,7 @@ fn run_output(pitch: Shared, volume: Shared, pitch_bend: Shared, control: Shared
 
 /// This function is where the sound is created and played. Once the sound is playing, it loops
 /// infinitely, allowing the `shared()` objects to shape the sound in response to MIDI events.
-fn run_synth<T: SizedSample + FromSample<f64>>(
+fn run_synth<T: SizedSample + FromSample<TargetF>>(
     pitch: Shared,
     volume: Shared,
     pitch_bend: Shared,
@@ -175,7 +176,7 @@ fn run_synth<T: SizedSample + FromSample<f64>>(
     config: StreamConfig,
 ) {
     std::thread::spawn(move || {
-        let sample_rate = config.sample_rate.0 as f64;
+        let sample_rate = config.sample_rate.0 as TargetF;
         let mut sound = create_sound(pitch, volume, pitch_bend, control);
         sound.set_sample_rate(sample_rate);
 
@@ -202,20 +203,20 @@ fn run_synth<T: SizedSample + FromSample<f64>>(
 
 /// Algorithm is from here: https://sites.uci.edu/camp2014/2014/04/30/managing-midi-pitchbend-messages/
 /// Converts MIDI pitch-bend message to +/- 1 semitone.
-fn pitch_bend_factor(bend: u16) -> f64 {
-    2.0_f64.powf(((bend as f64 - 8192.0) / 8192.0) / 12.0)
+fn pitch_bend_factor(bend: u16) -> TargetF {
+    (2.0 as TargetF).powf(((bend as TargetF - 8192.0) / 8192.0) / 12.0)
 }
 
 /// Callback function to send the current sample to the speakers.
-fn write_data<T: SizedSample + FromSample<f64>>(
+fn write_data<T: SizedSample + FromSample<TargetF>>(
     output: &mut [T],
     channels: usize,
     next_sample: &mut dyn FnMut() -> (f32, f32),
 ) {
     for frame in output.chunks_mut(channels) {
         let sample = next_sample();
-        let left: T = T::from_sample(sample.0 as f64);
-        let right: T = T::from_sample(sample.1 as f64);
+        let left: T = T::from_sample(sample.0 as TargetF);
+        let right: T = T::from_sample(sample.1 as TargetF);
 
         for (channel, sample) in frame.iter_mut().enumerate() {
             *sample = if channel & 1 == 0 { left } else { right };

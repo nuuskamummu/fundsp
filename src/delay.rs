@@ -5,8 +5,8 @@ use super::math::*;
 use super::setting::*;
 use super::signal::*;
 use super::*;
+use super::target_width::*;
 use core::marker::PhantomData;
-use num_complex::Complex64;
 use numeric_array::typenum::*;
 extern crate alloc;
 use alloc::vec::Vec;
@@ -17,7 +17,7 @@ use alloc::vec::Vec;
 #[derive(Clone, Default)]
 pub struct Tick<N: Size<f32>> {
     buffer: Frame<f32, N>,
-    sample_rate: f64,
+    sample_rate: TargetF,
 }
 
 impl<N: Size<f32>> Tick<N> {
@@ -31,7 +31,7 @@ impl<N: Size<f32>> Tick<N> {
 }
 
 impl<N: Size<f32>> AudioNode for Tick<N> {
-    const ID: u64 = 9;
+    const ID: TargetU = 9;
     type Inputs = N;
     type Outputs = N;
 
@@ -39,7 +39,7 @@ impl<N: Size<f32>> AudioNode for Tick<N> {
         self.buffer = Frame::default();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate;
     }
 
@@ -49,13 +49,13 @@ impl<N: Size<f32>> AudioNode for Tick<N> {
         self.buffer = input.clone();
         output
     }
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         for i in 0..self.outputs() {
             output.set(
                 i,
                 input.at(i).filter(1.0, |r| {
-                    r * Complex64::from_polar(1.0, -f64::TAU * frequency / self.sample_rate)
+                    r * TargetComplex::from_polar(1.0, -TargetF::TAU * frequency / self.sample_rate)
                 }),
             );
         }
@@ -71,15 +71,15 @@ impl<N: Size<f32>> AudioNode for Tick<N> {
 pub struct Delay {
     buffer: Vec<f32>,
     i: usize,
-    sample_rate: f64,
-    length: f64,
+    sample_rate: TargetF,
+    length: TargetF,
 }
 
 impl Delay {
     /// Create a new fixed delay. The `length` of the delay line,
     /// which is specified in seconds, is rounded to the nearest sample.
     /// The minimum delay is one sample.
-    pub fn new(length: f64) -> Delay {
+    pub fn new(length: TargetF) -> Delay {
         let mut node = Delay {
             buffer: Vec::new(),
             i: 0,
@@ -92,7 +92,7 @@ impl Delay {
 }
 
 impl AudioNode for Delay {
-    const ID: u64 = 13;
+    const ID: TargetU = 13;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -101,7 +101,7 @@ impl AudioNode for Delay {
         self.buffer.fill(0.0);
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         if self.sample_rate != sample_rate {
             self.sample_rate = sample_rate;
             let buffer_length = max(1.0, round(self.length * sample_rate));
@@ -121,14 +121,14 @@ impl AudioNode for Delay {
         [output].into()
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
-            input.at(0).filter(self.buffer.len() as f64, |r| {
-                r * Complex64::from_polar(
+            input.at(0).filter(self.buffer.len() as TargetF, |r| {
+                r * TargetComplex::from_polar(
                     1.0,
-                    -f64::TAU * self.buffer.len() as f64 * frequency / self.sample_rate,
+                    -TargetF::TAU * self.buffer.len() as TargetF * frequency / self.sample_rate,
                 )
             }),
         );
@@ -183,7 +183,7 @@ where
     N: Size<f32> + Add<U1>,
     <N as Add<U1>>::Output: Size<f32>,
 {
-    const ID: u64 = 50;
+    const ID: TargetU = 50;
     type Inputs = Sum<N, U1>;
     type Outputs = U1;
 
@@ -192,11 +192,11 @@ where
         self.buffer.fill(0.0);
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         let sample_rate = sample_rate as f32;
         if self.sample_rate != sample_rate {
             let buffer_length = ceil(self.max_delay * sample_rate) + 2.0;
-            let buffer_length = (buffer_length.to_f64() as usize).next_power_of_two();
+            let buffer_length = (buffer_length.to_target_f() as usize).next_power_of_two();
             self.sample_rate = sample_rate;
             self.buffer.resize(buffer_length, 0.0);
             self.reset();
@@ -230,13 +230,13 @@ where
         [output].into()
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
             input
                 .at(0)
-                .distort(self.min_delay.to_f64() * self.sample_rate.to_f64()),
+                .distort(self.min_delay.to_target_f() * self.sample_rate.to_target_f()),
         );
         output
     }
@@ -290,11 +290,11 @@ where
     N: Size<f32>,
     X: AudioNode<Inputs = U1, Outputs = U1>,
 {
-    const ID: u64 = 83;
+    const ID: TargetU = 83;
     type Inputs = N;
     type Outputs = U1;
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
     }
 
@@ -328,7 +328,7 @@ where
         self.x.allocate();
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Arbitrary(0.0).route(input, self.outputs())
     }
 }
@@ -380,7 +380,7 @@ where
     N: Size<f32> + Add<U1>,
     <N as Add<U1>>::Output: Size<f32>,
 {
-    const ID: u64 = 50;
+    const ID: TargetU = 50;
     type Inputs = Sum<N, U1>;
     type Outputs = U1;
 
@@ -389,11 +389,11 @@ where
         self.buffer.fill(0.0);
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         let sample_rate = sample_rate as f32;
         if self.sample_rate != sample_rate {
             let buffer_length = ceil(self.max_delay * sample_rate) + 2.0;
-            let buffer_length = (buffer_length.to_f64() as usize).next_power_of_two();
+            let buffer_length = (buffer_length.to_target_f() as usize).next_power_of_two();
             self.sample_rate = sample_rate;
             self.buffer.resize(buffer_length, 0.0);
             self.reset();
@@ -419,13 +419,13 @@ where
         [output].into()
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
             input
                 .at(0)
-                .distort(self.min_delay.to_f64() * self.sample_rate.to_f64()),
+                .distort(self.min_delay.to_target_f() * self.sample_rate.to_target_f()),
         );
         output
     }

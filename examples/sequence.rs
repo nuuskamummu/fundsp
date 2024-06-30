@@ -6,33 +6,34 @@
 use fundsp::hacker::*;
 use fundsp::sound::*;
 use funutd::*;
+use fundsp::target_width::*;
 
 fn main() {
     let mut rng = Rnd::new();
 
-    let bpm = 128.0;
+    let bpm: TargetF = 128.0;
 
     /*
-    let wind = |seed: i64, panning| {
-        (noise() | lfo(move |t| xerp11(50.0, 5000.0, fractal_noise(seed, 6, 0.5, t * 0.2))))
+    let wind = |seed: TargetI, panning| {
+        (noise() | lfo(move |t: TargetF| xerp11(50.0, 5000.0, fractal_noise(seed, 6, 0.5, t * 0.2))))
             >> bandpass_q(5.0)
             >> pan(panning)
     };
     */
 
-    let sample_rate = 44100.0;
+    let sample_rate: TargetF = 44100.0;
     // 'x' indicates a drum hit, while '.' is a rest.
     let bassd_line = "x.....x.x.......x.....x.xx......x.....x.x.......x.......x.x.....";
     let snare_line = "....x.......x.......x.......x.......x.......x.......x.......x...";
     let cymbl_line = "x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.";
 
     /*
-    let bd = |seed: i64| {
+    let bd = |seed: TargetI| {
         bus::<U40, _, _>(|i| {
             let f = xerp(50.0, 2000.0, rnd(i ^ seed));
-            lfo(move |t| xerp(f, f * semitone_ratio(-5.0), t))
+            lfo(move |t: TargetF| xerp(f, f * semitone_ratio(-5.0), t))
                 >> sine()
-                    * lfo(move |t| {
+                    * lfo(move |t: TargetF| {
                         xerp(1.0, 0.02, dexerp(50.0, 2000.0, f)) * exp(-t * f * f * 0.002)
                     })
                 >> pan(0.0)
@@ -40,7 +41,7 @@ fn main() {
     };
 
     let bd2 = || {
-        let sweep = (lfo(|t| xerp(100.0, 50.0, t)) >> saw() | lfo(|t| xerp(3000.0, 3.0, t)))
+        let sweep = (lfo(|t: TargetF| xerp(100.0, 50.0, t)) >> saw() | lfo(|t: TargetF| xerp(3000.0, 3.0, t)))
             >> !lowpass_q(2.0)
             >> lowpass_q(1.0);
         sweep >> pinkpass() >> shape(Shape::Tanh(2.0)) >> pan(0.0)
@@ -50,7 +51,7 @@ fn main() {
     let stab = move || {
         let bps = bpm / 60.0;
         fundsp::sound::pebbles(14.0, 200)
-            * lfo(move |t| {
+            * lfo(move |t: TargetF| {
                 if t * bps - round(t * bps) > 0.0 && round(t * bps) < 32.0 {
                     0.1
                 } else {
@@ -58,7 +59,7 @@ fn main() {
                 }
             })
             >> highpass_hz(3200.0, 1.0)
-            >> phaser(0.85, |t| sin_hz(0.1, t) * 0.5 + 0.5)
+            >> phaser(0.85, |t: TargetF| sin_hz(0.1, t) * 0.5 + 0.5)
             >> pan(0.0)
     };
     */
@@ -69,14 +70,14 @@ fn main() {
     //sequencer.push(0.0, 60.0, Fade::Smooth, 0.0, 0.0, Box::new(stab() * 0.4));
 
     let length = bassd_line.as_bytes().len();
-    let duration = length as f64 / bpm_hz(bpm) / 4.0 * 2.0 + 2.0;
+    let duration = length as TargetF / bpm_hz(bpm) / 4.0 * 2.0 + 2.0;
 
     for i in 0..length * 2 {
-        let t0 = i as f64 / bpm_hz(bpm) / 4.0;
+        let t0 = i as TargetF / bpm_hz(bpm) / 4.0;
         let t1 = t0 + 1.0;
         if bassd_line.as_bytes()[i % length] == b'x' {
             sequencer.push(
-                t0 + 0.001 * rng.f64(),
+                t0 + 0.001 * rnd_target_f(&mut rng),
                 t1,
                 Fade::Smooth,
                 0.0,
@@ -86,22 +87,22 @@ fn main() {
         }
         if snare_line.as_bytes()[i % length] == b'x' {
             sequencer.push(
-                t0 + 0.001 * rng.f64(),
+                t0 + 0.001 * rnd_target_f(&mut rng),
                 t1,
                 Fade::Smooth,
                 0.0,
                 0.25,
-                Box::new(snaredrum(rng.i64(), 0.4 + rng.f32() * 0.02) * 1.5 >> pan(0.0)),
+                Box::new(snaredrum(rnd_target_i(&mut rng), 0.4 + rng.f32() * 0.02) * 1.5 >> pan(0.0)),
             );
         }
         if cymbl_line.as_bytes()[i % length] == b'x' {
             sequencer.push(
-                t0 + 0.001 * rng.f64(),
+                t0 + 0.001 * rnd_target_f(&mut rng),
                 t1,
                 Fade::Smooth,
                 0.0,
                 0.25,
-                Box::new(cymbal(rng.i64()) * 0.05 >> pan(0.0)),
+                Box::new(cymbal(rnd_target_i(&mut rng)) * 0.05 >> pan(0.0)),
             );
         }
     }

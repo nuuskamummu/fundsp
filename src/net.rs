@@ -9,8 +9,9 @@ use super::realnet::*;
 use super::setting::*;
 use super::signal::*;
 use super::*;
-use core::sync::atomic::{AtomicU64, Ordering};
 use hashbrown::HashMap;
+use node::{NodeId, ID};
+use target_width::TargetU;
 use thingbuf::mpsc::{channel, Receiver, Sender};
 extern crate alloc;
 use alloc::boxed::Box;
@@ -19,23 +20,6 @@ use alloc::vec::Vec;
 
 pub type NodeIndex = usize;
 pub type PortIndex = usize;
-
-/// Globally unique node ID for a node in a network.
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct NodeId(u64);
-
-/// This atomic supplies globally unique IDs.
-static GLOBAL_NODE_ID: AtomicU64 = AtomicU64::new(0);
-
-impl NodeId {
-    /// Create a new, globally unique node ID.
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        NodeId(GLOBAL_NODE_ID.fetch_add(1, Ordering::Relaxed))
-    }
-}
-
-const ID: u64 = 63;
 
 /// Input or output port.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -81,7 +65,7 @@ struct Vertex {
     /// We can then omit copying and use the source node outputs directly.
     pub source_vertex: Option<(NodeIndex, usize)>,
     /// Network revision in which this vertex was changed last.
-    pub changed: u64,
+    pub changed: TargetU,
 }
 
 impl Vertex {
@@ -168,7 +152,7 @@ pub struct Net {
     /// Translation map from node ID to vertex index.
     node_index: HashMap<NodeId, NodeIndex>,
     /// Current sample rate.
-    sample_rate: f64,
+    sample_rate: TargetF,
     /// Optional frontend.
     front: Option<(Sender<NetMessage>, Receiver<Net>)>,
     /// Number of inputs in the backend. This is for checking consistency during commits.
@@ -177,7 +161,7 @@ pub struct Net {
     backend_outputs: usize,
     /// Revision number. This is used by frontends and backends only.
     /// The revision is incremented after each commit.
-    revision: u64,
+    revision: TargetU,
 }
 
 impl Clone for Net {
@@ -967,7 +951,7 @@ impl AudioUnit for Net {
         self.output.channels()
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         if self.sample_rate != sample_rate {
             self.sample_rate = sample_rate;
             for vertex in &mut self.vertex {
@@ -1103,7 +1087,7 @@ impl AudioUnit for Net {
         }
     }
 
-    fn get_id(&self) -> u64 {
+    fn get_id(&self) -> TargetU {
         ID
     }
 
@@ -1115,7 +1099,7 @@ impl AudioUnit for Net {
         hash
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut inner_signal: Vec<SignalFrame> = Vec::new();
         for vertex in self.vertex.iter() {
             inner_signal.push(SignalFrame::new(vertex.unit.outputs()));

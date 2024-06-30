@@ -5,6 +5,7 @@ use super::buffer::*;
 use super::signal::*;
 use super::*;
 use numeric_array::*;
+use target_width::TargetU;
 use thingbuf::mpsc::{channel, Receiver, Sender};
 extern crate alloc;
 use alloc::vec;
@@ -48,7 +49,7 @@ impl SnoopBuffer {
 pub struct Snoop {
     receiver: Receiver<SnoopBuffer>,
     index: usize,
-    total: u64,
+    total: TargetU,
     latest: Vec<f32>,
 }
 
@@ -82,7 +83,7 @@ impl Snoop {
     }
 
     /// Total number of samples received so far.
-    pub fn total(&self) -> u64 {
+    pub fn total(&self) -> TargetU {
         self.total
     }
 
@@ -117,7 +118,7 @@ pub struct SnoopBackend {
 }
 
 impl AudioNode for SnoopBackend {
-    const ID: u64 = 77;
+    const ID: TargetU = 77;
     type Inputs = typenum::U1;
     type Outputs = typenum::U1;
 
@@ -150,7 +151,7 @@ impl AudioNode for SnoopBackend {
             }
         }
     }
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         input.clone()
     }
 }

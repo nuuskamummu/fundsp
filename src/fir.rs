@@ -4,7 +4,7 @@ use super::audionode::*;
 use super::combinator::*;
 use super::signal::*;
 use super::*;
-use num_complex::Complex64;
+use target_width::*;
 use numeric_array::typenum::*;
 
 /// FIR filter.
@@ -14,7 +14,7 @@ use numeric_array::typenum::*;
 pub struct Fir<N: Size<f32>> {
     w: Frame<f32, N>,
     v: Frame<f32, N>,
-    sample_rate: f64,
+    sample_rate: TargetF,
 }
 
 impl<N: Size<f32>> Fir<N> {
@@ -41,7 +41,7 @@ impl<N: Size<f32>> Fir<N> {
 }
 
 impl<N: Size<f32>> AudioNode for Fir<N> {
-    const ID: u64 = 52;
+    const ID: TargetU = 52;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -49,7 +49,7 @@ impl<N: Size<f32>> AudioNode for Fir<N> {
         self.v = Frame::default();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate;
     }
 
@@ -69,16 +69,16 @@ impl<N: Size<f32>> AudioNode for Fir<N> {
         [output].into()
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
             input.at(0).filter(0.0, |r| {
-                let z1 = Complex64::from_polar(1.0, -f64::TAU * frequency / self.sample_rate);
-                let mut z = Complex64::new(1.0, 0.0);
-                let mut x = Complex64::default();
+                let z1 = TargetComplex::from_polar(1.0, -TargetF::TAU * frequency / self.sample_rate);
+                let mut z = TargetComplex::new(1.0, 0.0);
+                let mut x = TargetComplex::default();
                 for i in 0..N::USIZE {
-                    x += Complex64::new(self.w[N::USIZE - 1 - i].to_f64(), 0.0) * z;
+                    x += TargetComplex::new(self.w[N::USIZE - 1 - i].to_target_f(), 0.0) * z;
                     z *= z1;
                 }
                 r * x

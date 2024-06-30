@@ -7,9 +7,9 @@ use super::setting::*;
 use super::signal::*;
 use super::*;
 use core::marker::PhantomData;
-use num_complex::Complex64;
 use numeric_array::typenum::*;
 use numeric_array::{ArrayLength, NumericArray};
+use target_width::*;
 
 /// Type-level integer. These are notated as `U0`, `U1`...
 pub trait Size<T>: ArrayLength<T> + ArrayLength<[F32x; SIMD_LEN]> + Sync + Send + Clone {}
@@ -34,7 +34,7 @@ Order of type arguments in nodes:
 /// `AudioNode` has a static number of inputs (`AudioNode::Inputs`) and outputs (`AudioNode::Outputs`).
 pub trait AudioNode: Clone + Sync + Send {
     /// Unique ID for hashing.
-    const ID: u64;
+    const ID: TargetU;
     /// Input arity.
     type Inputs: Size<f32>;
     /// Output arity.
@@ -69,7 +69,7 @@ pub trait AudioNode: Clone + Sync + Send {
     /// node.set_sample_rate(48_000.0);
     /// ```
     #[allow(unused_variables)]
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         // The default implementation does nothing.
     }
 
@@ -135,7 +135,7 @@ pub trait AudioNode: Clone + Sync + Send {
     /// This is called from `ping` (only). It should not be called by users.
     /// The node is allowed to reset itself here.
     #[allow(unused_variables)]
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         // Override this to use the hash.
         // The default implementation does nothing.
     }
@@ -171,7 +171,7 @@ pub trait AudioNode: Clone + Sync + Send {
     /// from inputs to outputs. Return output signal.
     /// If there are no frequency responses in `input`, then `frequency` is ignored.
     #[allow(unused_variables)]
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         // The default implementation marks all outputs unknown.
         SignalFrame::new(self.outputs())
     }
@@ -281,14 +281,14 @@ pub trait AudioNode: Clone + Sync + Send {
     /// ### Example
     /// ```
     /// use fundsp::hacker::*;
-    /// use num_complex::Complex64;
-    /// assert_eq!(pass().response(0, 440.0), Some(Complex64::new(1.0, 0.0)));
+    /// use num_complex::TargetComplex;
+    /// assert_eq!(pass().response(0, 440.0), Some(TargetComplex::new(1.0, 0.0)));
     /// ```
-    fn response(&mut self, output: usize, frequency: f64) -> Option<Complex64> {
+    fn response(&mut self, output: usize, frequency: TargetF) -> Option<TargetComplex> {
         assert!(output < self.outputs());
         let mut input = SignalFrame::new(self.inputs());
         for i in 0..self.inputs() {
-            input.set(i, Signal::Response(Complex64::new(1.0, 0.0), 0.0));
+            input.set(i, Signal::Response(TargetComplex::new(1.0, 0.0), 0.0));
         }
         let response = self.route(&input, frequency);
         match response.at(output) {
@@ -307,7 +307,7 @@ pub trait AudioNode: Clone + Sync + Send {
     /// let db = pass().response_db(0, 440.0).unwrap();
     /// assert!(db < 1.0e-7 && db > -1.0e-7);
     /// ```
-    fn response_db(&mut self, output: usize, frequency: f64) -> Option<f64> {
+    fn response_db(&mut self, output: usize, frequency: TargetF) -> Option<TargetF> {
         assert!(output < self.outputs());
         self.response(output, frequency).map(|r| amp_db(r.norm()))
     }
@@ -324,7 +324,7 @@ pub trait AudioNode: Clone + Sync + Send {
     /// assert_eq!(sink().latency(), None);
     /// assert_eq!(lowpass_hz(440.0, 1.0).latency(), Some(0.0));
     /// ```
-    fn latency(&mut self) -> Option<f64> {
+    fn latency(&mut self) -> Option<TargetF> {
         if self.outputs() == 0 {
             return None;
         }
@@ -336,7 +336,7 @@ pub trait AudioNode: Clone + Sync + Send {
         // only latencies. Latencies are never promoted to responses during signal routing.
         let response = self.route(&input, 1.0);
         // Return the minimum latency.
-        let mut result: Option<f64> = None;
+        let mut result: Option<TargetF> = None;
         for output in 0..self.outputs() {
             match (result, response.at(output)) {
                 (None, Signal::Latency(x)) => result = Some(x),
@@ -361,7 +361,7 @@ impl<N: Size<f32>> MultiPass<N> {
 }
 
 impl<N: Size<f32>> AudioNode for MultiPass<N> {
-    const ID: u64 = 0;
+    const ID: TargetU = 0;
     type Inputs = N;
     type Outputs = N;
 
@@ -376,7 +376,7 @@ impl<N: Size<f32>> AudioNode for MultiPass<N> {
             }
         }
     }
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         input.clone()
     }
 }
@@ -394,7 +394,7 @@ impl Pass {
 // Note. We have separate Pass and MultiPass structs
 // because it helps a little with type inference.
 impl AudioNode for Pass {
-    const ID: u64 = 48;
+    const ID: TargetU = 48;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -407,7 +407,7 @@ impl AudioNode for Pass {
             output.set(0, i, input.at(0, i));
         }
     }
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         input.clone()
     }
 }
@@ -425,7 +425,7 @@ impl<N: Size<f32>> Sink<N> {
 }
 
 impl<N: Size<f32>> AudioNode for Sink<N> {
-    const ID: u64 = 1;
+    const ID: TargetU = 1;
     type Inputs = N;
     type Outputs = U0;
 
@@ -435,7 +435,7 @@ impl<N: Size<f32>> AudioNode for Sink<N> {
     }
     fn process(&mut self, _size: usize, _input: &BufferRef, _output: &mut BufferMut) {}
 
-    fn route(&mut self, _input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, _input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         SignalFrame::new(self.outputs())
     }
 }
@@ -469,7 +469,7 @@ impl<N: Size<f32>> Constant<N> {
 }
 
 impl<N: Size<f32>> AudioNode for Constant<N> {
-    const ID: u64 = 2;
+    const ID: TargetU = 2;
     type Inputs = U0;
     type Outputs = N;
 
@@ -493,10 +493,10 @@ impl<N: Size<f32>> AudioNode for Constant<N> {
         }
     }
 
-    fn route(&mut self, _input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, _input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         for i in 0..N::USIZE {
-            output.set(i, Signal::Value(self.output[i].to_f64()));
+            output.set(i, Signal::Value(self.output[i].to_target_f()));
         }
         output
     }
@@ -526,7 +526,7 @@ impl<N> AudioNode for Split<N>
 where
     N: Size<f32>,
 {
-    const ID: u64 = 40;
+    const ID: TargetU = 40;
     type Inputs = U1;
     type Outputs = N;
 
@@ -541,7 +541,7 @@ where
             }
         }
     }
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Split.route(input, self.outputs())
     }
 }
@@ -572,7 +572,7 @@ where
     N: Size<f32>,
     <M as Mul<N>>::Output: Size<f32>,
 {
-    const ID: u64 = 38;
+    const ID: TargetU = 38;
     type Inputs = M;
     type Outputs = numeric_array::typenum::Prod<M, N>;
 
@@ -587,7 +587,7 @@ where
             }
         }
     }
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Split.route(input, self.outputs())
     }
 }
@@ -614,7 +614,7 @@ impl<N> AudioNode for Join<N>
 where
     N: Size<f32>,
 {
-    const ID: u64 = 41;
+    const ID: TargetU = 41;
     type Inputs = N;
     type Outputs = U1;
 
@@ -637,7 +637,7 @@ where
             }
         }
     }
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Join.route(input, self.outputs())
     }
 }
@@ -669,7 +669,7 @@ where
     N: Size<f32>,
     <M as Mul<N>>::Output: Size<f32>,
 {
-    const ID: u64 = 39;
+    const ID: TargetU = 39;
     type Inputs = numeric_array::typenum::Prod<M, N>;
     type Outputs = M;
 
@@ -696,7 +696,7 @@ where
             }
         }
     }
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Join.route(input, self.outputs())
     }
 }
@@ -812,10 +812,10 @@ impl<N: Size<f32>> FrameBinop<N> for FrameMul<N> {
             (Signal::Response(_, lx), Signal::Latency(ly)) => Signal::Latency(min(lx, ly)),
             (Signal::Latency(lx), Signal::Response(_, ly)) => Signal::Latency(min(lx, ly)),
             (Signal::Response(rx, lx), Signal::Value(vy)) => {
-                Signal::Response(rx * Complex64::new(vy, 0.0), lx)
+                Signal::Response(rx * TargetComplex::new(vy, 0.0), lx)
             }
             (Signal::Value(vx), Signal::Response(ry, ly)) => {
-                Signal::Response(ry * Complex64::new(vx, 0.0), ly)
+                Signal::Response(ry * TargetComplex::new(vx, 0.0), ly)
             }
             (Signal::Latency(lx), _) => Signal::Latency(lx),
             (Signal::Response(_, lx), _) => Signal::Latency(lx),
@@ -894,7 +894,7 @@ where
     X::Inputs: Add<Y::Inputs>,
     <X::Inputs as Add<Y::Inputs>>::Output: Size<f32>,
 {
-    const ID: u64 = 3;
+    const ID: TargetU = 3;
     type Inputs = Sum<X::Inputs, Y::Inputs>;
     type Outputs = X::Outputs;
 
@@ -903,7 +903,7 @@ where
         self.y.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
         self.y.set_sample_rate(sample_rate);
     }
@@ -957,7 +957,7 @@ where
         self.y.allocate();
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut signal_x = self
             .x
             .route(&SignalFrame::copy(input, 0, X::Inputs::USIZE), frequency);
@@ -1083,7 +1083,7 @@ impl<N: Size<f32>> FrameUnop<N> for FrameAddScalar<N> {
     }
     fn route(&self, x: Signal) -> Signal {
         match x {
-            Signal::Value(vx) => Signal::Value(vx + self.scalar.to_f64()),
+            Signal::Value(vx) => Signal::Value(vx + self.scalar.to_target_f()),
             s => s,
         }
     }
@@ -1124,7 +1124,7 @@ impl<N: Size<f32>> FrameUnop<N> for FrameNegAddScalar<N> {
     }
     fn route(&self, x: Signal) -> Signal {
         match x {
-            Signal::Value(vx) => Signal::Value(-vx + self.scalar.to_f64()),
+            Signal::Value(vx) => Signal::Value(-vx + self.scalar.to_target_f()),
             Signal::Response(rx, lx) => Signal::Response(-rx, lx),
             s => s,
         }
@@ -1166,8 +1166,8 @@ impl<N: Size<f32>> FrameUnop<N> for FrameMulScalar<N> {
     }
     fn route(&self, x: Signal) -> Signal {
         match x {
-            Signal::Response(vx, lx) => Signal::Response(vx * self.scalar.to_f64(), lx),
-            Signal::Value(vx) => Signal::Value(vx * self.scalar.to_f64()),
+            Signal::Response(vx, lx) => Signal::Response(vx * self.scalar.to_target_f(), lx),
+            Signal::Value(vx) => Signal::Value(vx * self.scalar.to_target_f()),
             s => s,
         }
     }
@@ -1198,7 +1198,7 @@ where
     X: AudioNode,
     U: FrameUnop<X::Outputs>,
 {
-    const ID: u64 = 4;
+    const ID: TargetU = 4;
     type Inputs = X::Inputs;
     type Outputs = X::Outputs;
 
@@ -1206,7 +1206,7 @@ where
         self.x.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
     }
 
@@ -1237,7 +1237,7 @@ where
         self.x.allocate();
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut signal_x = self.x.route(input, frequency);
         for i in 0..Self::Outputs::USIZE {
             signal_x.set(i, self.u.route(signal_x.at(i)));
@@ -1277,7 +1277,7 @@ where
     O: ConstantFrame<Sample = f32>,
     O::Size: Size<f32>,
 {
-    const ID: u64 = 5;
+    const ID: TargetU = 5;
     type Inputs = I;
     type Outputs = O::Size;
 
@@ -1286,7 +1286,7 @@ where
         (self.f)(input).frame()
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         self.routing.route(input, O::Size::USIZE)
     }
 }
@@ -1349,7 +1349,7 @@ where
     X: AudioNode,
     Y: AudioNode<Inputs = X::Outputs>,
 {
-    const ID: u64 = 6;
+    const ID: TargetU = 6;
     type Inputs = X::Inputs;
     type Outputs = Y::Outputs;
 
@@ -1358,7 +1358,7 @@ where
         self.y.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
         self.y.set_sample_rate(sample_rate);
     }
@@ -1390,7 +1390,7 @@ where
         self.y.allocate();
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.y.route(&self.x.route(input, frequency), frequency)
     }
 }
@@ -1452,7 +1452,7 @@ where
     <X::Inputs as Add<Y::Inputs>>::Output: Size<f32>,
     <X::Outputs as Add<Y::Outputs>>::Output: Size<f32>,
 {
-    const ID: u64 = 7;
+    const ID: TargetU = 7;
     type Inputs = Sum<X::Inputs, Y::Inputs>;
     type Outputs = Sum<X::Outputs, Y::Outputs>;
 
@@ -1461,7 +1461,7 @@ where
         self.y.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
         self.y.set_sample_rate(sample_rate);
     }
@@ -1506,7 +1506,7 @@ where
         self.y.ping(probe, self.x.ping(probe, hash.hash(Self::ID)))
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut signal_x = self
             .x
             .route(&SignalFrame::copy(input, 0, X::Inputs::USIZE), frequency);
@@ -1580,7 +1580,7 @@ where
     X::Outputs: Add<Y::Outputs>,
     <X::Outputs as Add<Y::Outputs>>::Output: Size<f32>,
 {
-    const ID: u64 = 8;
+    const ID: TargetU = 8;
     type Inputs = X::Inputs;
     type Outputs = Sum<X::Outputs, Y::Outputs>;
 
@@ -1589,7 +1589,7 @@ where
         self.y.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
         self.y.set_sample_rate(sample_rate);
     }
@@ -1630,7 +1630,7 @@ where
         self.y.ping(probe, self.x.ping(probe, hash.hash(Self::ID)))
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut signal_x = self.x.route(input, frequency);
         let signal_y = self.y.route(input, frequency);
         signal_x.resize(self.outputs());
@@ -1704,7 +1704,7 @@ where
     X: AudioNode,
     Y: AudioNode<Inputs = X::Inputs, Outputs = X::Outputs>,
 {
-    const ID: u64 = 10;
+    const ID: TargetU = 10;
     type Inputs = X::Inputs;
     type Outputs = X::Outputs;
 
@@ -1713,7 +1713,7 @@ where
         self.y.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
         self.y.set_sample_rate(sample_rate);
     }
@@ -1747,7 +1747,7 @@ where
         self.y.ping(probe, self.x.ping(probe, hash.hash(Self::ID)))
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut signal_x = self.x.route(input, frequency);
         let signal_y = self.y.route(input, frequency);
         for i in 0..Self::Outputs::USIZE {
@@ -1788,7 +1788,7 @@ impl<X: AudioNode> Thru<X> {
 }
 
 impl<X: AudioNode> AudioNode for Thru<X> {
-    const ID: u64 = 12;
+    const ID: TargetU = 12;
     type Inputs = X::Inputs;
     type Outputs = X::Inputs;
 
@@ -1796,7 +1796,7 @@ impl<X: AudioNode> AudioNode for Thru<X> {
         self.x.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
     }
 
@@ -1844,7 +1844,7 @@ impl<X: AudioNode> AudioNode for Thru<X> {
         self.x.ping(probe, hash.hash(Self::ID))
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = self.x.route(input, frequency);
         output.resize(self.outputs());
         for i in X::Outputs::USIZE..Self::Outputs::USIZE {
@@ -1902,7 +1902,7 @@ where
     N: Size<f32> + Size<X>,
     X: AudioNode,
 {
-    const ID: u64 = 28;
+    const ID: TargetU = 28;
     type Inputs = X::Inputs;
     type Outputs = X::Outputs;
 
@@ -1910,7 +1910,7 @@ where
         self.x.iter_mut().for_each(|node| node.reset());
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x
             .iter_mut()
             .for_each(|node| node.set_sample_rate(sample_rate));
@@ -1949,7 +1949,7 @@ where
         hash
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = self.x[0].route(input, frequency);
         for i in 1..self.x.len() {
             let output_i = self.x[i].route(input, frequency);
@@ -2031,7 +2031,7 @@ where
     <X::Inputs as Mul<N>>::Output: Size<f32>,
     <X::Outputs as Mul<N>>::Output: Size<f32>,
 {
-    const ID: u64 = 30;
+    const ID: TargetU = 30;
     type Inputs = Prod<X::Inputs, N>;
     type Outputs = Prod<X::Outputs, N>;
 
@@ -2039,7 +2039,7 @@ where
         self.x.iter_mut().for_each(|node| node.reset());
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x
             .iter_mut()
             .for_each(|node| node.set_sample_rate(sample_rate));
@@ -2085,7 +2085,7 @@ where
         hash
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         if self.x.is_empty() {
             return SignalFrame::new(self.outputs());
         }
@@ -2167,7 +2167,7 @@ where
     <X::Inputs as Mul<N>>::Output: Size<f32>,
     B: FrameBinop<X::Outputs>,
 {
-    const ID: u64 = 32;
+    const ID: TargetU = 32;
     type Inputs = Prod<X::Inputs, N>;
     type Outputs = X::Outputs;
 
@@ -2175,7 +2175,7 @@ where
         self.x.iter_mut().for_each(|node| node.reset());
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x
             .iter_mut()
             .for_each(|node| node.set_sample_rate(sample_rate));
@@ -2232,7 +2232,7 @@ where
         hash
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = self.x[0].route(input, frequency);
         for j in 1..self.x.len() {
             let output_j = self.x[j].route(
@@ -2299,7 +2299,7 @@ where
     X::Outputs: Mul<N>,
     <X::Outputs as Mul<N>>::Output: Size<f32>,
 {
-    const ID: u64 = 33;
+    const ID: TargetU = 33;
     type Inputs = X::Inputs;
     type Outputs = Prod<X::Outputs, N>;
 
@@ -2307,7 +2307,7 @@ where
         self.x.iter_mut().for_each(|node| node.reset());
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x
             .iter_mut()
             .for_each(|node| node.set_sample_rate(sample_rate));
@@ -2350,7 +2350,7 @@ where
         hash
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         if self.x.is_empty() {
             return SignalFrame::new(self.outputs());
         }
@@ -2418,7 +2418,7 @@ where
     N: Size<f32> + Size<X>,
     X: AudioNode,
 {
-    const ID: u64 = 32;
+    const ID: TargetU = 32;
     type Inputs = X::Inputs;
     type Outputs = X::Outputs;
 
@@ -2426,7 +2426,7 @@ where
         self.x.iter_mut().for_each(|node| node.reset());
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x
             .iter_mut()
             .for_each(|node| node.set_sample_rate(sample_rate));
@@ -2476,7 +2476,7 @@ where
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = self.x[0].route(input, frequency);
         for i in 1..self.x.len() {
             output = self.x[i].route(&output, frequency);
@@ -2498,7 +2498,7 @@ impl<N: Size<f32>> Reverse<N> {
 }
 
 impl<N: Size<f32>> AudioNode for Reverse<N> {
-    const ID: u64 = 45;
+    const ID: TargetU = 45;
     type Inputs = N;
     type Outputs = N;
 
@@ -2513,7 +2513,7 @@ impl<N: Size<f32>> AudioNode for Reverse<N> {
             }
         }
     }
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Reverse.route(input, N::USIZE)
     }
 }
@@ -2535,7 +2535,7 @@ impl<N: Size<f32>> Impulse<N> {
 }
 
 impl<N: Size<f32>> AudioNode for Impulse<N> {
-    const ID: u64 = 81;
+    const ID: TargetU = 81;
     type Inputs = U0;
     type Outputs = N;
 
@@ -2549,7 +2549,7 @@ impl<N: Size<f32>> AudioNode for Impulse<N> {
         self.value = 0.0;
         output
     }
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Generator(0.0).route(input, N::USIZE)
     }
 }

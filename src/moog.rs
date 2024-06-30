@@ -4,6 +4,7 @@ use super::audionode::*;
 use super::math::*;
 use super::setting::*;
 use super::signal::*;
+use super::target_width::*;
 use super::*;
 use numeric_array::*;
 
@@ -49,16 +50,16 @@ impl<F: Real, N: Size<f32>> Moog<F, N> {
         self.cutoff = cutoff;
         self.q = q;
         let c = F::new(2) * cutoff / self.sample_rate;
-        self.p = c * (F::from_f64(1.8) - F::from_f64(0.8) * c);
-        self.k = F::new(2) * sin(c * F::PI * F::from_f64(0.5)) - F::one();
-        let t1 = (F::one() - self.p) * F::from_f64(1.386249);
+        self.p = c * (F::from_target_f(1.8) - F::from_target_f(0.8) * c);
+        self.k = F::new(2) * sin(c * F::PI * F::from_target_f(0.5)) - F::one();
+        let t1 = (F::one() - self.p) * F::from_target_f(1.386249);
         let t2 = F::new(12) + t1 * t1;
         self.rez = q * (t2 + F::new(6) * t1) / (t2 - F::new(6) * t1);
     }
 }
 
 impl<F: Real, N: Size<f32>> AudioNode for Moog<F, N> {
-    const ID: u64 = 60;
+    const ID: TargetU = 60;
     type Inputs = N;
     type Outputs = typenum::U1;
 
@@ -73,7 +74,7 @@ impl<F: Real, N: Size<f32>> AudioNode for Moog<F, N> {
         self.ps2 = F::zero();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
         self.set_cutoff_q(self.cutoff, self.q);
     }
@@ -109,7 +110,7 @@ impl<F: Real, N: Size<f32>> AudioNode for Moog<F, N> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(0, input.at(0).distort(0.0));
         output

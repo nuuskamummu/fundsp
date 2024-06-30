@@ -4,8 +4,9 @@ use super::audionode::*;
 use super::buffer::*;
 use super::combinator::*;
 use super::math::*;
-use super::net::NodeId;
+use super::node::NodeId;
 use super::signal::*;
+use super::target_width::*;
 pub use thingbuf::mpsc::errors::TrySendError;
 use thingbuf::mpsc::{channel, Receiver, Sender};
 use tinyvec::ArrayVec;
@@ -251,7 +252,7 @@ impl<X: AudioNode> SettingListener<X> {
 }
 
 impl<X: AudioNode> AudioNode for SettingListener<X> {
-    const ID: u64 = 71;
+    const ID: TargetU = 71;
     type Inputs = X::Inputs;
     type Outputs = X::Outputs;
 
@@ -260,7 +261,7 @@ impl<X: AudioNode> AudioNode for SettingListener<X> {
         self.x.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.receive_settings();
         self.x.set_sample_rate(sample_rate);
     }
@@ -280,7 +281,7 @@ impl<X: AudioNode> AudioNode for SettingListener<X> {
         self.x.ping(probe, hash.hash(Self::ID))
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.receive_settings();
         self.x.route(input, frequency)
     }

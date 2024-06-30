@@ -8,6 +8,7 @@ use eframe::egui;
 use egui::*;
 use fundsp::hacker::*;
 use funutd::Rnd;
+use fundsp::target_width::*;
 
 #[derive(Debug, PartialEq)]
 enum Waveform {
@@ -46,17 +47,17 @@ struct State {
     /// Selected filter.
     filter: Filter,
     /// Vibrato amount in 0...1.
-    vibrato_amount: f64,
+    vibrato_amount: TargetF,
     /// Chorus amount.
     chorus_amount: Shared,
     /// Reverb amount.
     reverb_amount: Shared,
     /// Reverb room size.
-    room_size: f64,
+    room_size: TargetF,
     /// Reverb time in seconds.
-    reverb_time: f64,
+    reverb_time: TargetF,
     /// Reverb diffusion.
-    reverb_diffusion: f64,
+    reverb_diffusion: TargetF,
     /// Reverb frontend.
     reverb: Slot,
     /// Phaser frontend.
@@ -135,9 +136,9 @@ fn create_reverb(room_size: f32, time: f32, diffusion: f32) -> Box<dyn AudioUnit
 
 fn run<T>(device: &cpal::Device, config: &cpal::StreamConfig) -> Result<(), anyhow::Error>
 where
-    T: SizedSample + FromSample<f64>,
+    T: SizedSample + FromSample<TargetF>,
 {
-    let sample_rate = config.sample_rate.0 as f64;
+    let sample_rate = config.sample_rate.0 as TargetF;
     let channels = config.channels as usize;
 
     let mut sequencer = Sequencer::new(false, 1);
@@ -197,7 +198,7 @@ where
     };
 
     let state: State = State {
-        rnd: Rnd::from_u64(0), // Rnd::from_time(),
+        rnd: rnd_from_target_u(0), // Rnd::from_time(),
         id: vec![None; KEYS.len()],
         sequencer,
         net,
@@ -206,10 +207,10 @@ where
         vibrato_amount: 0.5,
         chorus_amount,
         reverb_amount,
-        room_size: room_size as f64,
+        room_size: room_size as TargetF,
         reverb,
-        reverb_time: reverb_time as f64,
-        reverb_diffusion: reverb_diffusion as f64,
+        reverb_time: reverb_time as TargetF,
+        reverb_diffusion: reverb_diffusion as TargetF,
         phaser,
         phaser_enabled: false,
         flanger,
@@ -230,12 +231,12 @@ where
 
 fn write_data<T>(output: &mut [T], channels: usize, next_sample: &mut dyn FnMut() -> (f32, f32))
 where
-    T: SizedSample + FromSample<f64>,
+    T: SizedSample + FromSample<TargetF>,
 {
     for frame in output.chunks_mut(channels) {
         let sample = next_sample();
-        let left: T = T::from_sample(sample.0 as f64);
-        let right: T = T::from_sample(sample.1 as f64);
+        let left: T = T::from_sample(sample.0 as TargetF);
+        let right: T = T::from_sample(sample.1 as TargetF);
 
         for (channel, sample) in frame.iter_mut().enumerate() {
             if channel & 1 == 0 {
@@ -423,9 +424,9 @@ impl eframe::App for State {
                     }
                 }
                 if ctx.input(|c| c.key_down(KEYS[i])) && self.id[i].is_none() {
-                    let pitch_hz = midi_hz(40.0 + i as f64);
+                    let pitch_hz = midi_hz(40.0 + i as TargetF);
                     let v = self.vibrato_amount * 0.006;
-                    let pitch = lfo(move |t| {
+                    let pitch = lfo(move |t: TargetF| {
                         pitch_hz
                             * xerp11(
                                 1.0 / (1.0 + v),
@@ -441,7 +442,7 @@ impl eframe::App for State {
                         Waveform::Organ => Net::wrap(Box::new(pitch >> organ() * 0.5)),
                         Waveform::Hammond => Net::wrap(Box::new(pitch >> hammond() * 0.5)),
                         Waveform::Pulse => Net::wrap(Box::new(
-                            (pitch | lfo(move |t| lerp11(0.01, 0.99, sin_hz(0.1, t))))
+                            (pitch | lfo(move |t: TargetF| lerp11(0.01, 0.99, sin_hz(0.1, t))))
                                 >> pulse() * 0.5,
                         )),
                         Waveform::Pluck => {
@@ -450,7 +451,7 @@ impl eframe::App for State {
                         Waveform::Noise => Net::wrap(Box::new(
                             (noise()
                                 | pitch * 4.0
-                                | lfo(move |t| funutd::math::lerp(100.0, 50.0, clamp01(t * 5.0))))
+                                | lfo(move |t: TargetF| funutd::math::lerp(100.0, 50.0, clamp01(t * 5.0))))
                                 >> !resonator()
                                 >> resonator()
                                 >> shape(AdaptiveTanh::new(0.02, 0.1)),
@@ -459,30 +460,30 @@ impl eframe::App for State {
                     let filter = match self.filter {
                         Filter::None => Net::wrap(Box::new(pass())),
                         Filter::Moog => Net::wrap(Box::new(
-                            (pass() | lfo(move |t| (xerp11(400.0, 10000.0, cos_hz(0.1, t)), 0.6)))
+                            (pass() | lfo(move |t: TargetF| (xerp11(400.0, 10000.0, cos_hz(0.1, t)), 0.6)))
                                 >> moog(),
                         )),
                         Filter::Butterworth => Net::wrap(Box::new(
-                            (pass() | lfo(move |t| max(400.0, 10000.0 * exp(-t * 5.0))))
+                            (pass() | lfo(move |t: TargetF| max(400.0, 10000.0 * exp(-t * 5.0))))
                                 >> butterpass(),
                         )),
                         Filter::Bandpass => Net::wrap(Box::new(
-                            (pass() | lfo(move |t| (xerp11(200.0, 10000.0, sin_hz(0.2, t)), 2.0)))
+                            (pass() | lfo(move |t: TargetF| (xerp11(200.0, 10000.0, sin_hz(0.2, t)), 2.0)))
                                 >> bandpass(),
                         )),
                         Filter::Peak => Net::wrap(Box::new(
-                            (pass() | lfo(move |t| (xerp11(200.0, 10000.0, sin_hz(0.2, t)), 2.0)))
+                            (pass() | lfo(move |t: TargetF| (xerp11(200.0, 10000.0, sin_hz(0.2, t)), 2.0)))
                                 >> peak(),
                         )),
                     };
                     let mut note = Box::new(waveform >> filter);
                     // Give the note its own random seed.
-                    note.ping(false, AttoHash::new(self.rnd.u64()));
+                    note.ping(false, AttoHash::new(rnd_target_u(&mut self.rnd)));
                     // Insert new note. We set the end time to infinity initially,
                     // which means it plays indefinitely until the key is released.
                     self.id[i] = Some(self.sequencer.push_relative(
                         0.0,
-                        f64::INFINITY,
+                        TargetF::INFINITY,
                         Fade::Smooth,
                         0.02,
                         0.2,

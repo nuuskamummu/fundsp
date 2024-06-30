@@ -53,11 +53,11 @@ pub fn adsr_live(
 
 fn ads<F: Float>(attack: F, decay: F, sustain: F, time: F) -> F {
     if time < attack {
-        lerp(F::from_f64(0.0), F::from_f64(1.0), time / attack)
+        lerp(F::from_target_f(0.0), F::from_target_f(1.0), time / attack)
     } else {
         let decay_time = time - attack;
         if decay_time < decay {
-            lerp(F::from_f64(1.0), sustain, decay_time / decay)
+            lerp(F::from_target_f(1.0), sustain, decay_time / decay)
         } else {
             sustain
         }

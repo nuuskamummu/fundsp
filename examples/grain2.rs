@@ -6,6 +6,7 @@ use cpal::{FromSample, SizedSample};
 use fundsp::gen::*;
 use fundsp::hacker::*;
 use funutd::dna::*;
+use fundsp::target_width::*;
 
 fn main() {
     let host = cpal::default_host();
@@ -25,9 +26,9 @@ fn main() {
 
 fn run<T>(device: &cpal::Device, config: &cpal::StreamConfig) -> Result<(), anyhow::Error>
 where
-    T: SizedSample + FromSample<f64>,
+    T: SizedSample + FromSample<TargetF>,
 {
-    let sample_rate = config.sample_rate.0 as f64;
+    let sample_rate = config.sample_rate.0 as TargetF;
     let channels = config.channels as usize;
 
     let scale = [
@@ -66,7 +67,7 @@ where
         0.150,
         0.0,
         #[allow(unused_variables)]
-        move |t, b, v, x, y, z| {
+        move |t: TargetF, b, v, x, y, z| {
             let start = lerp11(4410.0, (wave_arc.len() - 4410) as f32, x);
             let start_i = round(start) as usize;
             let duration = 0.05;
@@ -113,12 +114,12 @@ where
 
 fn write_data<T>(output: &mut [T], channels: usize, next_sample: &mut dyn FnMut() -> (f32, f32))
 where
-    T: SizedSample + FromSample<f64>,
+    T: SizedSample + FromSample<TargetF>,
 {
     for frame in output.chunks_mut(channels) {
         let sample = next_sample();
-        let left: T = T::from_sample(sample.0 as f64);
-        let right: T = T::from_sample(sample.1 as f64);
+        let left: T = T::from_sample(sample.0 as TargetF);
+        let right: T = T::from_sample(sample.1 as TargetF);
 
         for (channel, sample) in frame.iter_mut().enumerate() {
             if channel & 1 == 0 {

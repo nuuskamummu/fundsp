@@ -5,6 +5,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
 use fundsp::hacker::*;
 use funutd::dna::*;
+use fundsp::target_width::*;
 
 fn main() {
     let host = cpal::default_host();
@@ -24,9 +25,9 @@ fn main() {
 
 fn run<T>(device: &cpal::Device, config: &cpal::StreamConfig) -> Result<(), anyhow::Error>
 where
-    T: SizedSample + FromSample<f64>,
+    T: SizedSample + FromSample<TargetF>,
 {
-    let sample_rate = config.sample_rate.0 as f64;
+    let sample_rate = config.sample_rate.0 as TargetF;
     let channels = config.channels as usize;
 
     let _c = Granular::new(
@@ -39,7 +40,7 @@ where
         0.15,
         0.0,
         #[allow(unused_variables)]
-        |t, b, v, x, y, z| {
+        |t: TargetF, b, v, x, y, z| {
             let scale = [
                 36.0, 38.0, 41.0, 43.0, 46.0, 48.0, 50.0, 53.0, 55.0, 58.0, 60.0, 62.0, 65.0, 67.0,
                 70.0, 72.0, 74.0, 77.0, 79.0, 82.0, 84.0,
@@ -47,19 +48,19 @@ where
             let d = lerp11(0.0, scale.len() as f32 - 0.01, x);
             let f = midi_hz(scale[d as usize] + 0.02 * (d - round(d)));
             let r = max(1.0, xerp11(0.50, 2.00, z));
-            let f = f * xerp11(1.0 / r as f64, r as f64, sin_hz(6.0, t)) as f32;
+            let f = f * xerp11(1.0 / r as TargetF, r as TargetF, sin_hz(6.0, t)) as f32;
             (
                 0.060,
                 0.030,
                 Box::new(soft_saw_hz(f) * xerp11(0.005, 0.05, y) >> pan(v * 0.6)),
             )
         },
-        /*|t, b, v, x, y, z| {
+        /*|t: TargetF, b, v, x, y, z| {
             let scale = [
                 44.0, 46.0, 49.0, 51.0, 53.0, 55.0, 56.0, 58.0, 61.0, 63.0, 65.0, 67.0, 68.0, 70.0,
                 73.0, 75.0, 77.0, 79.0, 80.0, 82.0, 84.0, 87.0, 89.0, 91.0, 92.0,
             ];
-            let d = lerp11(0.0, scale.len() as f64 - 0.01, x);
+            let d = lerp11(0.0, scale.len() as TargetF - 0.01, x);
             let f = midi_hz(scale[d as usize] + 0.02 * (d - round(d)));
             (
                 0.060,
@@ -71,12 +72,12 @@ where
                 ),
             )
         },*/
-        /*|t, b, v, x, y, z| {
+        /*|t: TargetF, b, v, x, y, z| {
             let scale = [
                 36.0, 38.0, 41.0, 43.0, 46.0, 48.0, 50.0, 53.0, 55.0, 58.0, 60.0, 62.0, 65.0, 67.0,
                 70.0, 72.0, 74.0, 77.0, 79.0, 82.0, 84.0
             ];
-            let d = lerp11(0.0, scale.len() as f64 - 0.01, x);
+            let d = lerp11(0.0, scale.len() as TargetF - 0.01, x);
             let f = midi_hz(scale[d as usize] + 0.02 * (d - round(d)));
             let c = xerp11(1.0, 200.0, y);
             (
@@ -88,13 +89,13 @@ where
                 ),
             )
         },*/
-        /*|t, b, v, x, y, z| {
+        /*|t: TargetF, b, v, x, y, z| {
             let scale = [
                 //32.0, 34.0, 37.0, 39.0, 41.0,
                 44.0, 46.0, 49.0, 51.0, 53.0, 56.0, 58.0, 61.0, 63.0, 65.0, 68.0, 70.0, 73.0, 75.0,
                 77.0, 80.0, 82.0, 84.0, 87.0, 89.0, 92.0,
             ];
-            let d = lerp11(0.0, scale.len() as f64 - 0.01, x);
+            let d = lerp11(0.0, scale.len() as TargetF - 0.01, x);
             let f = midi_hz(scale[d as usize] + 0.02 * (d - round(d)));
             let w = xerp11(2.0, 200.0, y);
             (
@@ -108,13 +109,13 @@ where
                 ),
             )
         },*/
-        /*|t, b, v, x, y, z| {
+        /*|t: TargetF, b, v, x, y, z| {
             let scale = [
                 44.0, 46.0, 48.0, 49.0, 51.0, 53.0, 55.0, 56.0, 58.0, 60.0, 61.0, 63.0, 65.0, 67.0,
                 68.0, 70.0, 72.0, 73.0, 75.0, 77.0, 79.0, 80.0, 82.0, 84.0, 86.0, 87.0, 89.0, 91.0,
                 92.0,
             ];
-            let d = lerp11(0.0, scale.len() as f64 - 0.001, y);
+            let d = lerp11(0.0, scale.len() as TargetF - 0.001, y);
             let f = midi_hz(scale[d as usize] + 0.05 * (d - round(d)));
             let h = 1.0 + xerp11(0.1, 10.0, x);
             (
@@ -129,12 +130,12 @@ where
                 ),
             )
         },*/
-        /*|t, b, v, x, y, z| {
+        /*|t: TargetF, b, v, x, y, z| {
             let scale = [
                 36.0, 38.0, 41.0, 43.0, 46.0, 48.0, 50.0, 53.0, 55.0, 58.0, 60.0, 62.0, 65.0, 67.0,
                 70.0, 72.0, 74.0, 77.0, 79.0, 82.0, 84.0,
             ];
-            let d = lerp11(0.0, scale.len() as f64 - 0.01, x);
+            let d = lerp11(0.0, scale.len() as TargetF - 0.01, x);
             let f = midi_hz(scale[d as usize] + 0.02 * (d - round(d)));
             (
                 0.070,
@@ -146,12 +147,12 @@ where
                 ),
             )
         },*/
-        /*|t, b, v, x, y, z| {
+        /*|t: TargetF, b, v, x, y, z| {
             let scale = [
                 36.0, 38.0, 40.0, 43.0, 45.0, 48.0, 50.0, 52.0, 55.0, 57.0, 60.0, 62.0, 64.0, 67.0,
                 69.0, 72.0, 74.0, 76.0, 79.0, 81.0, 84.0, 86.0, 88.0, 91.0, 93.0, 96.0,
             ];
-            let d = lerp11(0.0, scale.len() as f64 - 0.01, x);
+            let d = lerp11(0.0, scale.len() as TargetF - 0.01, x);
             let f = midi_hz(scale[d as usize] + 0.02 * (d - round(d)));
             (
                 0.060,
@@ -208,12 +209,12 @@ where
 
 fn write_data<T>(output: &mut [T], channels: usize, next_sample: &mut dyn FnMut() -> (f32, f32))
 where
-    T: SizedSample + FromSample<f64>,
+    T: SizedSample + FromSample<TargetF>,
 {
     for frame in output.chunks_mut(channels) {
         let sample = next_sample();
-        let left: T = T::from_sample(sample.0 as f64);
-        let right: T = T::from_sample(sample.1 as f64);
+        let left: T = T::from_sample(sample.0 as TargetF);
+        let right: T = T::from_sample(sample.1 as TargetF);
 
         for (channel, sample) in frame.iter_mut().enumerate() {
             if channel & 1 == 0 {

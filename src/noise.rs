@@ -7,6 +7,7 @@ use super::signal::*;
 use super::*;
 use funutd::Rnd;
 use numeric_array::*;
+use target_width::TargetU;
 
 /// Maximum length sequences (MLS) are pseudorandom, spectrally flat,
 /// binary white noise sequences with interesting properties.
@@ -100,7 +101,7 @@ impl MlsState {
 #[derive(Clone)]
 pub struct Mls {
     mls: MlsState,
-    hash: u64,
+    hash: TargetU,
 }
 
 impl Mls {
@@ -110,7 +111,7 @@ impl Mls {
 }
 
 impl AudioNode for Mls {
-    const ID: u64 = 19;
+    const ID: TargetU = 19;
     type Inputs = typenum::U0;
     type Outputs = typenum::U1;
 
@@ -125,12 +126,12 @@ impl AudioNode for Mls {
         [value * 2.0 - 1.0].into()
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.reset();
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         super::signal::Routing::Generator(0.0).route(input, self.outputs())
     }
 }
@@ -160,7 +161,7 @@ fn hash32f_simd(x: U32x) -> U32x {
 #[derive(Default, Clone)]
 pub struct Noise {
     state: u32,
-    hash: u64,
+    hash: TargetU,
 }
 
 impl Noise {
@@ -170,7 +171,7 @@ impl Noise {
 }
 
 impl AudioNode for Noise {
-    const ID: u64 = 20;
+    const ID: TargetU = 20;
     type Inputs = typenum::U0;
     type Outputs = typenum::U1;
 
@@ -202,12 +203,12 @@ impl AudioNode for Noise {
         self.state = self.state.wrapping_add(size as u32);
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.reset();
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Generator(0.0).route(input, self.outputs())
     }
 }
@@ -220,11 +221,11 @@ impl AudioNode for Noise {
 #[derive(Default, Clone)]
 pub struct Hold {
     rnd: Rnd,
-    hash: u64,
-    sample_duration: f64,
+    hash: TargetU,
+    sample_duration: TargetF,
     variability: f32,
-    t: f64,
-    next_t: f64,
+    t: TargetF,
+    next_t: TargetF,
     hold: f32,
 }
 
@@ -253,17 +254,17 @@ impl Hold {
 }
 
 impl AudioNode for Hold {
-    const ID: u64 = 76;
+    const ID: TargetU = 76;
     type Inputs = typenum::U2;
     type Outputs = typenum::U1;
 
     fn reset(&mut self) {
-        self.rnd = Rnd::from_u64(self.hash);
+        self.rnd = rnd_from_target_u(self.hash as TargetU);
         self.t = 0.0;
         self.next_t = 0.0;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_duration = 1.0 / sample_rate;
     }
 
@@ -273,10 +274,10 @@ impl AudioNode for Hold {
             self.hold = input[0];
             self.next_t = self.t
                 + super::math::lerp(
-                    1.0 - self.variability.to_f64(),
-                    1.0 + self.variability.to_f64(),
-                    self.rnd.f64(),
-                ) / input[1].to_f64();
+                    1.0 - self.variability.to_target_f(),
+                    1.0 + self.variability.to_target_f(),
+                    rnd_target_f(&mut self.rnd),
+                ) / input[1].to_target_f();
         }
         self.t += self.sample_duration;
         [self.hold].into()
@@ -288,12 +289,12 @@ impl AudioNode for Hold {
         }
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.reset();
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(0, input.at(0).distort(0.0));
         output

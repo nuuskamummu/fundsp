@@ -9,12 +9,12 @@ use super::signal::*;
 use super::*;
 use core::marker::PhantomData;
 use dyn_clone::DynClone;
-use num_complex::Complex64;
 extern crate alloc;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Write;
+use super::target_width::*;
 
 /// An audio processor with an object safe interface.
 /// Once constructed, it has a fixed number of inputs and outputs.
@@ -27,7 +27,7 @@ pub trait AudioUnit: Send + Sync + DynClone {
     /// The default sample rate is 44100 Hz.
     /// The unit is allowed to reset itself here in response to sample rate changes.
     /// If the sample rate stays unchanged, then the goal is to maintain current state.
-    fn set_sample_rate(&mut self, sample_rate: f64);
+    fn set_sample_rate(&mut self, sample_rate: TargetF);
 
     /// Process one sample.
     /// The length of `input` and `output` must be equal to `inputs` and `outputs`, respectively.
@@ -53,15 +53,15 @@ pub trait AudioUnit: Send + Sync + DynClone {
 
     /// Route constants, latencies and frequency responses at `frequency` Hz
     /// from inputs to outputs. Return output signal.
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame;
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame;
 
     /// Return an ID code for this type of unit.
-    fn get_id(&self) -> u64;
+    fn get_id(&self) -> TargetU;
 
     /// Set unit pseudorandom phase hash. Override this to use the hash.
     /// This is called from `ping` (only). It should not be called by users.
     #[allow(unused_variables)]
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         // The default implementation does nothing.
     }
 
@@ -184,14 +184,14 @@ pub trait AudioUnit: Send + Sync + DynClone {
     /// ### Example
     /// ```
     /// use fundsp::hacker::*;
-    /// use num_complex::Complex64;
-    /// assert_eq!(pass().response(0, 440.0), Some(Complex64::new(1.0, 0.0)));
+    /// use num_complex::TargetComplex;
+    /// assert_eq!(pass().response(0, 440.0), Some(TargetComplex::new(1.0, 0.0)));
     /// ```
-    fn response(&mut self, output: usize, frequency: f64) -> Option<Complex64> {
+    fn response(&mut self, output: usize, frequency: TargetF) -> Option<TargetComplex> {
         assert!(output < self.outputs());
         let mut input = SignalFrame::new(self.inputs());
         for i in 0..self.inputs() {
-            input.set(i, Signal::Response(Complex64::new(1.0, 0.0), 0.0));
+            input.set(i, Signal::Response(TargetComplex::new(1.0, 0.0), 0.0));
         }
         let response = self.route(&input, frequency);
         match response.at(output) {
@@ -210,7 +210,7 @@ pub trait AudioUnit: Send + Sync + DynClone {
     /// let db = pass().response_db(0, 440.0).unwrap();
     /// assert!(db < 1.0e-7 && db > -1.0e-7);
     /// ```
-    fn response_db(&mut self, output: usize, frequency: f64) -> Option<f64> {
+    fn response_db(&mut self, output: usize, frequency: TargetF) -> Option<TargetF> {
         assert!(output < self.outputs());
         self.response(output, frequency).map(|r| amp_db(r.norm()))
     }
@@ -227,7 +227,7 @@ pub trait AudioUnit: Send + Sync + DynClone {
     /// assert_eq!(sink().latency(), None);
     /// assert_eq!(lowpass_hz(440.0, 1.0).latency(), Some(0.0));
     /// ```
-    fn latency(&mut self) -> Option<f64> {
+    fn latency(&mut self) -> Option<TargetF> {
         if self.outputs() == 0 {
             return None;
         }
@@ -239,7 +239,7 @@ pub trait AudioUnit: Send + Sync + DynClone {
         // only latencies. Latencies are never promoted to responses during signal routing.
         let response = self.route(&input, 1.0);
         // Return the minimum latency.
-        let mut result: Option<f64> = None;
+        let mut result: Option<TargetF> = None;
         for output in 0..self.outputs() {
             match (result, response.at(output)) {
                 (None, Signal::Latency(x)) => result = Some(x),
@@ -273,7 +273,7 @@ pub trait AudioUnit: Send + Sync + DynClone {
 
             let mut scope: Vec<_> = scope.iter().map(|x| x.to_vec()).collect();
 
-            let f: [f64; 48] = [
+            let f: [TargetF; 48] = [
                 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 120.0, 140.0, 160.0,
                 180.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0, 500.0, 600.0, 700.0, 800.0, 900.0,
                 1000.0, 1200.0, 1400.0, 1600.0, 1800.0, 2000.0, 2500.0, 3000.0, 3500.0, 4000.0,
@@ -287,7 +287,7 @@ pub trait AudioUnit: Send + Sync + DynClone {
                 .collect();
 
             let epsilon_db = 1.0e-2;
-            let max_r = r.iter().fold((-f64::INFINITY, None), {
+            let max_r = r.iter().fold((-TargetF::INFINITY, None), {
                 |acc, &x| {
                     if abs(acc.0 - x.0) <= epsilon_db {
                         (max(acc.0, x.0), None)
@@ -314,7 +314,7 @@ pub trait AudioUnit: Send + Sync + DynClone {
             for (row, ascii_line) in scope.into_iter().enumerate() {
                 let line = String::from_utf8(ascii_line).unwrap();
                 if row & 1 == 0 {
-                    let db = round(max_db - row as f64 * 5.0) as i64;
+                    let db: TargetI = round(max_db - row as TargetF * 5.0) as TargetI;
                     writeln!(&mut string, "{:3} dB {} {:3} dB", db, line, db).unwrap();
                 } else {
                     writeln!(&mut string, "       {}", line).unwrap();
@@ -336,7 +336,7 @@ pub trait AudioUnit: Send + Sync + DynClone {
 
             match max_r.1 {
                 Some(frequency) => {
-                    writeln!(&mut string, " ({} Hz)", frequency as i64).unwrap();
+                    writeln!(&mut string, " ({} Hz)", frequency as TargetI).unwrap();
                 }
                 _ => {
                     string.push('\n');
@@ -368,7 +368,7 @@ where
     fn reset(&mut self) {
         self.0.reset();
     }
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.0.set_sample_rate(sample_rate);
     }
     #[inline]
@@ -393,14 +393,14 @@ where
     fn outputs(&self) -> usize {
         self.0.outputs()
     }
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.0.route(input, frequency)
     }
     #[inline]
-    fn get_id(&self) -> u64 {
+    fn get_id(&self) -> TargetU {
         X::ID
     }
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.0.set_hash(hash);
     }
     fn ping(&mut self, probe: bool, hash: AttoHash) -> AttoHash {
@@ -433,11 +433,11 @@ impl<I: Size<f32>, O: Size<f32>> Unit<I, O> {
 }
 
 impl<I: Size<f32>, O: Size<f32>> AudioNode for Unit<I, O> {
-    const ID: u64 = 82;
+    const ID: TargetU = 82;
     type Inputs = I;
     type Outputs = O;
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.unit.set_sample_rate(sample_rate);
     }
 
@@ -464,7 +464,7 @@ impl<I: Size<f32>, O: Size<f32>> AudioNode for Unit<I, O> {
         self.unit.ping(probe, hash)
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.unit.route(input, frequency)
     }
 
@@ -520,7 +520,7 @@ impl AudioUnit for BigBlockAdapter {
     fn reset(&mut self) {
         self.source.reset();
     }
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.source.set_sample_rate(sample_rate);
     }
     fn tick(&mut self, input: &[f32], output: &mut [f32]) {
@@ -538,13 +538,13 @@ impl AudioUnit for BigBlockAdapter {
     fn outputs(&self) -> usize {
         self.source.outputs()
     }
-    fn get_id(&self) -> u64 {
+    fn get_id(&self) -> TargetU {
         self.source.get_id()
     }
     fn ping(&mut self, probe: bool, hash: AttoHash) -> AttoHash {
         self.source.ping(probe, hash)
     }
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.source.route(input, frequency)
     }
     fn footprint(&self) -> usize {
@@ -585,7 +585,7 @@ impl AudioUnit for BlockRateAdapter {
         self.unit.reset();
         self.index = MAX_BUFFER_SIZE;
     }
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.unit.set_sample_rate(sample_rate);
     }
     fn tick(&mut self, _input: &[f32], output: &mut [f32]) {
@@ -629,13 +629,13 @@ impl AudioUnit for BlockRateAdapter {
     fn outputs(&self) -> usize {
         self.channels
     }
-    fn get_id(&self) -> u64 {
+    fn get_id(&self) -> TargetU {
         self.unit.get_id()
     }
     fn ping(&mut self, probe: bool, hash: AttoHash) -> AttoHash {
         self.unit.ping(probe, hash)
     }
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.unit.route(input, frequency)
     }
     fn footprint(&self) -> usize {

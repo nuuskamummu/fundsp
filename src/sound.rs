@@ -2,16 +2,17 @@
 
 use super::hacker::*;
 use funutd::*;
+use target_width::*;
 
 /// Sound 001. Risset Glissando, stereo.
 /// The direction of sound is up (true) or down (false).
 pub fn risset_glissando(up: bool) -> An<impl AudioNode<Inputs = U0, Outputs = U2>> {
     stacki::<U40, _, _>(|i| {
-        lfo(move |t| {
-            let (f0, f1) = if up { (20.0, 20480.0) } else { (20480.0, 20.0) };
-            let phase = (t * 0.1 + i as f64 * 10.0 / 40.0) % 10.0 / 10.0;
-            let f = lerp(-1.0, 1.0, rnd1(i)) + xerp(f0, f1, phase);
-            let a = smooth3(sin_hz(0.5, phase)) / a_weight(f);
+        lfo(move |t: TargetF| {
+            let (f0, f1) = if up { (20.0 as TargetF, 20480.0 as TargetF) } else { (20480.0 as TargetF, 20.0 as TargetF) };
+            let phase: TargetF = (t * 0.1 + i as TargetF * 10.0 / 40.0) % 10.0 / 10.0;
+            let f: TargetF = lerp(-1.0, 1.0, rnd1(i)) + xerp(f0, f1, phase);
+            let a: TargetF = smooth3(sin_hz(0.5, phase)) / a_weight(f);
             (a, f)
         }) >> pass() * sine()
     }) >> sumf::<U40, _, _>(|x| pan(lerp(-0.5, 0.5, x)))
@@ -19,7 +20,7 @@ pub fn risset_glissando(up: bool) -> An<impl AudioNode<Inputs = U0, Outputs = U2
 
 /// Sound 002. Dynamical system example that harmonizes a chaotic set of pitches.
 /// `speed` is rate of motion (for example, 1.0).
-pub fn pebbles(speed: f32, seed: u64) -> An<impl AudioNode<Inputs = U0, Outputs = U1>> {
+pub fn pebbles(speed: f32, seed: TargetU) -> An<impl AudioNode<Inputs = U0, Outputs = U1>> {
     let mut d = [0.0; 100];
 
     update(
@@ -70,32 +71,32 @@ pub fn bassdrum(
     pitch1: f32,
 ) -> An<impl AudioNode<Inputs = U0, Outputs = U1>> {
     let sweep =
-        lfo(move |t| xerp(pitch0 as f64, pitch1 as f64, clamp01(t * 50.0)) - 10.0 * t) >> sine();
+        lfo(move |t: TargetF| xerp(pitch0 as TargetF, pitch1 as TargetF, clamp01(t * 50.0)) - 10.0 * t) >> sine();
 
-    let volume = lfo(|t| exp(-t * 9.0));
+    let volume = lfo(|t: TargetF| exp(-t * 9.0));
 
     sweep * volume >> declick_s(xerp(0.002, 0.00002, sharpness))
 }
 
 /// Sound 004. A snare drum, mono. Different `seed` values produce small variations of the same sound.
 /// `sharpness` in 0...1 is the sharpness of the attack (for example, 0.3).
-pub fn snaredrum(seed: i64, sharpness: f32) -> An<impl AudioNode<Inputs = U0, Outputs = U1>> {
-    let mut rnd = Rnd::from_u64(seed as u64);
+pub fn snaredrum(seed: TargetI, sharpness: f32) -> An<impl AudioNode<Inputs = U0, Outputs = U1>> {
+    let mut rnd = rnd_from_target_u(seed as TargetU);
     // Snare drum mode frequencies.
-    let f0 = 180.0;
-    let f1 = 330.0;
-    let f2 = 275.0;
-    let f3 = 320.0;
-    let f4 = 400.0;
-    let f5 = 430.0;
-    let f6 = 509.0;
-    let f7 = 550.0;
-    let f8 = 616.0;
+    let f0: TargetF = 180.0;
+    let f1: TargetF = 330.0;
+    let f2: TargetF = 275.0;
+    let f3: TargetF = 320.0;
+    let f4: TargetF = 400.0;
+    let f5: TargetF = 430.0;
+    let f6: TargetF = 509.0;
+    let f7: TargetF = 550.0;
+    let f8: TargetF = 616.0;
 
-    let mut bend_sine = move |f: f64| {
-        let f0 = f + 1.0 * (rnd.f64() * 2.0 - 1.0);
-        let f1 = f + 3.0 * (rnd.f64() * 2.0 - 1.0);
-        lfo(move |t| lerp(f0, f1, t)) >> sine()
+    let mut bend_sine = move |f: TargetF| {
+        let f0: TargetF = f + 1.0 * (rnd_target_f(&mut rnd) * 2.0 - 1.0);
+        let f1: TargetF = f + 3.0 * (rnd_target_f(&mut rnd) * 2.0 - 1.0);
+        lfo(move |t: TargetF| lerp(f0, f1, t)) >> sine()
     };
 
     let modes01 = bend_sine(f0) + bend_sine(f1);
@@ -107,33 +108,33 @@ pub fn snaredrum(seed: i64, sharpness: f32) -> An<impl AudioNode<Inputs = U0, Ou
         + bend_sine(f7)
         + bend_sine(f8);
 
-    let mix = modes01 * 0.2 * lfo(|t| exp(-t * 16.0))
-        + modes28 * 0.1 * lfo(|t| exp(-t * 14.0))
-        + pink() * 0.7 * lfo(|t| exp(-t * 12.0));
+    let mix = modes01 * 0.2 * lfo(|t: TargetF| exp(-t * 16.0))
+        + modes28 * 0.1 * lfo(|t: TargetF| exp(-t * 14.0))
+        + pink() * 0.7 * lfo(|t: TargetF| exp(-t * 12.0));
 
-    (mix | lfo(|t| xerp(15000.0, 1000.0, t)))
+    (mix | lfo(|t: TargetF| xerp(15000.0, 1000.0, t)))
         >> lowpass_q(1.0)
         >> declick_s(xerp(0.02, 0.002, sharpness))
 }
 
 /// Sound 005. Some kind of cymbal, mono. Different `seed` values produce small variations of the same sound.
-pub fn cymbal(seed: i64) -> An<impl AudioNode<Inputs = U0, Outputs = U1>> {
-    let mut rnd = Rnd::from_u64(seed as u64);
-    let f1 = 1339.0586 + 5.0 * (rnd.f32() * 2.0 - 1.0);
-    let f2 = 1703.2929 + 5.0 * (rnd.f32() * 2.0 - 1.0);
-    let f3 = 2090.1314 + 5.0 * (rnd.f32() * 2.0 - 1.0);
-    let f4 = 1425.6187 + 5.0 * (rnd.f32() * 2.0 - 1.0);
-    let f5 = 1189.1727 + 5.0 * (rnd.f32() * 2.0 - 1.0);
-    let f6 = 1954.3242 + 5.0 * (rnd.f32() * 2.0 - 1.0);
-    let m1 = 54127.0;
-    let m2 = 43480.0;
-    let m3 = 56771.0;
+pub fn cymbal(seed: TargetI) -> An<impl AudioNode<Inputs = U0, Outputs = U1>> {
+    let mut rnd = rnd_from_target_u(seed as TargetU);
+    let f1: f32 = 1339.0586 + 5.0 * (rnd.f32() * 2.0 - 1.0);
+    let f2: f32 = 1703.2929 + 5.0 * (rnd.f32() * 2.0 - 1.0);
+    let f3: f32 = 2090.1314 + 5.0 * (rnd.f32() * 2.0 - 1.0);
+    let f4: f32 = 1425.6187 + 5.0 * (rnd.f32() * 2.0 - 1.0);
+    let f5: f32 = 1189.1727 + 5.0 * (rnd.f32() * 2.0 - 1.0);
+    let f6: f32 = 1954.3242 + 5.0 * (rnd.f32() * 2.0 - 1.0);
+    let m1: f32 = 54127.0;
+    let m2: f32 = 43480.0;
+    let m3: f32 = 56771.0;
 
     let complex = (square_hz(f1) * m1 + f2 >> square())
         + (square_hz(f3) * m2 + f4 >> square())
         + (square_hz(f5) * m3 + f6 >> square());
 
-    (complex * lfo(|t| exp(-t * 8.0)) | lfo(|t| xerp(20000.0, 2000.0, clamp01(t))))
+    (complex * lfo(|t: TargetF| exp(-t * 8.0)) | lfo(|t: TargetF| xerp(20000.0, 2000.0, clamp01(t))))
         >> lowpass_q(1.0)
         >> highpass_hz(2500.0, 1.0)
         >> declick_s(0.001)

@@ -12,6 +12,7 @@ use num_complex::Complex32;
 extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
+use target_width::TargetU;
 
 /// Number of overlapping FFT windows.
 const WINDOWS: usize = 4;
@@ -36,7 +37,7 @@ pub struct FftWindow {
     /// Current index into input and output vectors.
     index: usize,
     /// Total number of processed samples.
-    samples: u64,
+    samples: TargetU,
 }
 
 impl FftWindow {
@@ -64,15 +65,15 @@ impl FftWindow {
 
     /// Sample rate in Hz.
     #[inline]
-    pub fn sample_rate(&self) -> f64 {
-        self.sample_rate as f64
+    pub fn sample_rate(&self) -> TargetF {
+        self.sample_rate as TargetF
     }
 
     /// Processing latency of the resynthesizer in seconds.
     /// Equal to one window length.
     #[inline]
-    pub fn latency(&self) -> f64 {
-        self.length as f64 / self.sample_rate as f64
+    pub fn latency(&self) -> TargetF {
+        self.length as TargetF / self.sample_rate as TargetF
     }
 
     /// Time in seconds at the center (peak) of the window.
@@ -81,8 +82,8 @@ impl FftWindow {
     /// Latency is subtracted from stream time.
     /// Add `latency()` to this if you need stream time.
     #[inline]
-    pub fn time(&self) -> f64 {
-        (self.samples - (self.length as u64 >> 1)) as f64 / self.sample_rate as f64
+    pub fn time(&self) -> TargetF {
+        (self.samples - (self.length as TargetU >> 1)) as TargetF / self.sample_rate as TargetF
     }
 
     /// Time in seconds at sample `i` of the window.
@@ -91,8 +92,8 @@ impl FftWindow {
     /// Latency is subtracted from stream time.
     /// Add `latency()` to this if you need stream time.
     #[inline]
-    pub fn time_at(&self, i: usize) -> f64 {
-        (self.samples - self.length as u64 + i as u64) as f64 / self.sample_rate as f64
+    pub fn time_at(&self, i: usize) -> TargetF {
+        (self.samples - self.length as TargetU + i as TargetU) as TargetF / self.sample_rate as TargetF
     }
 
     /// Get forward vectors for forward FFT.
@@ -220,7 +221,7 @@ impl FftWindow {
     /// Return whether we should do FFT processing right now.
     #[inline]
     pub(crate) fn is_fft_time(&self) -> bool {
-        self.index == 0 && self.samples >= self.length as u64
+        self.index == 0 && self.samples >= self.length as TargetU
     }
 }
 
@@ -248,11 +249,11 @@ where
     /// Processing function.
     processing: F,
     /// Sample rate.
-    sample_rate: f64,
+    sample_rate: TargetF,
     /// Temporary vector for FFT.
     scratch: Vec<Complex32>,
     /// Number of processed samples.
-    samples: u64,
+    samples: TargetU,
     /// Normalizing term for FFT and overlap-add.
     z: f32,
 }
@@ -323,11 +324,11 @@ where
     O: Size<f32>,
     F: FnMut(&mut FftWindow) + Clone + Send + Sync,
 {
-    const ID: u64 = 80;
+    const ID: TargetU = 80;
     type Inputs = I;
     type Outputs = O;
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate;
         for i in 0..WINDOWS {
             self.window[i].set_sample_rate(sample_rate as f32);
@@ -353,7 +354,7 @@ where
 
         self.samples += 1;
 
-        if self.samples & ((self.window_length as u64 >> 2) - 1) == 0 {
+        if self.samples & ((self.window_length as TargetU >> 2) - 1) == 0 {
             for i in 0..WINDOWS {
                 if self.window[i].is_fft_time() {
                     for channel in 0..I::USIZE {
@@ -380,7 +381,7 @@ where
         output
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
-        Routing::Arbitrary(self.window_length as f64).route(input, self.outputs())
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
+        Routing::Arbitrary(self.window_length as TargetF).route(input, self.outputs())
     }
 }

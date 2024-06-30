@@ -8,6 +8,7 @@ use super::buffer::*;
 use super::math::*;
 use super::signal::*;
 use super::*;
+use target_width::*;
 use core::ops::{Add, BitAnd, BitOr, BitXor, Mul, Neg, Shr, Sub};
 use numeric_array::typenum::*;
 
@@ -199,7 +200,7 @@ impl<X: AudioNode> An<X> {
         self.0.reset();
     }
     #[inline]
-    pub fn set_sample_rate(&mut self, sample_rate: f64) {
+    pub fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.0.set_sample_rate(sample_rate);
     }
     #[inline]
@@ -211,7 +212,7 @@ impl<X: AudioNode> An<X> {
         self.0.process(size, input, output);
     }
     #[inline]
-    pub fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    pub fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.0.route(input, frequency)
     }
     #[inline]
@@ -223,7 +224,7 @@ impl<X: AudioNode> An<X> {
         self.0.outputs()
     }
     #[inline]
-    pub fn set_hash(&mut self, hash: u64) {
+    pub fn set_hash(&mut self, hash: TargetU) {
         self.0.set_hash(hash);
     }
     #[inline]

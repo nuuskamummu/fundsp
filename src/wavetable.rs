@@ -7,6 +7,7 @@ use super::math::*;
 use super::prelude::pass;
 use super::signal::*;
 use super::typenum::*;
+use super::target_width::*;
 use super::*;
 use num_complex::Complex32;
 extern crate alloc;
@@ -23,16 +24,16 @@ use once_cell::race::OnceBox;
 fn optimal4x44<T: Num>(a0: T, a1: T, a2: T, a3: T, x: T) -> T {
     // Interpolator sourced from:
     // Niemitalo, Olli, Polynomial Interpolators for High-Quality Resampling of Oversampled Audio, 2001.
-    let z = x - T::from_f64(0.5);
+    let z = x - T::from_target_f(0.5);
     let even1 = a2 + a1;
     let odd1 = a2 - a1;
     let even2 = a3 + a0;
     let odd2 = a3 - a0;
-    let c0 = even1 * T::from_f64(0.4656725512077848) + even2 * T::from_f64(0.03432729708429672);
-    let c1 = odd1 * T::from_f64(0.5374383075356016) + odd2 * T::from_f64(0.1542946255730746);
-    let c2 = even1 * T::from_f64(-0.25194210134021744) + even2 * T::from_f64(0.2519474493593906);
-    let c3 = odd1 * T::from_f64(-0.46896069955075126) + odd2 * T::from_f64(0.15578800670302476);
-    let c4 = even1 * T::from_f64(0.00986988334359864) + even2 * T::from_f64(-0.00989340017126506);
+    let c0 = even1 * T::from_target_f(0.4656725512077848) + even2 * T::from_target_f(0.03432729708429672);
+    let c1 = odd1 * T::from_target_f(0.5374383075356016) + odd2 * T::from_target_f(0.1542946255730746);
+    let c2 = even1 * T::from_target_f(-0.25194210134021744) + even2 * T::from_target_f(0.2519474493593906);
+    let c3 = odd1 * T::from_target_f(-0.46896069955075126) + odd2 * T::from_target_f(0.15578800670302476);
+    let c4 = even1 * T::from_target_f(0.00986988334359864) + even2 * T::from_target_f(-0.00989340017126506);
     (((c4 * z + c3) * z + c2) * z + c1) * z + c0
 }
 
@@ -40,14 +41,14 @@ fn optimal4x44<T: Num>(a0: T, a1: T, a2: T, a3: T, x: T) -> T {
 /// Assume sample rate is at least 44.1 kHz.
 /// `phase(i)` is phase in 0...1 for partial `i` (1, 2, ...).
 /// `amplitude(p, i)` is amplitude for fundamental `p` Hz partial `i` (with frequency `p * i`).
-pub fn make_wave<P, A>(pitch: f64, phase: &P, amplitude: &A) -> Vec<f32>
+pub fn make_wave<P, A>(pitch: TargetF, phase: &P, amplitude: &A) -> Vec<f32>
 where
-    P: Fn(u32) -> f64,
-    A: Fn(f64, u32) -> f64,
+    P: Fn(u32) -> TargetF,
+    A: Fn(TargetF, u32) -> TargetF,
 {
     // Fade out upper harmonics starting from 20 kHz.
-    const MAX_F: f64 = 22_000.0;
-    const FADE_F: f64 = 20_000.0;
+    const MAX_F: TargetF = 22_000.0;
+    const FADE_F: TargetF = 20_000.0;
 
     let harmonics = floor(MAX_F / pitch) as usize;
 
@@ -59,7 +60,7 @@ where
     let mut a = vec![Complex32::new(0.0, 0.0); length];
 
     for i in 1..=harmonics {
-        let f = pitch * i as f64;
+        let f = pitch * i as TargetF;
 
         // Get harmonic amplitude.
         let w = amplitude(pitch, i as u32);
@@ -67,7 +68,7 @@ where
         let w = w * smooth5(clamp01(delerp(MAX_F, FADE_F, f)));
         // Insert partial.
         if w > 0.0 {
-            a[i] = Complex32::from_polar(w as f32, (f64::TAU * phase(i as u32)) as f32);
+            a[i] = Complex32::from_polar(w as f32, (TargetF::TAU * phase(i as u32)) as f32);
         }
     }
 
@@ -92,19 +93,19 @@ impl Wavetable {
     /// (for example, 4.0). `phase(i)` is the phase of the `i`th partial.
     /// `amplitude(p, i)` is the amplitude of the `i`th partial with base frequency `p`.
     pub fn new<P, A>(
-        min_pitch: f64,
-        max_pitch: f64,
-        tables_per_octave: f64,
+        min_pitch: TargetF,
+        max_pitch: TargetF,
+        tables_per_octave: TargetF,
         phase: &P,
         amplitude: &A,
     ) -> Wavetable
     where
-        P: Fn(u32) -> f64,
-        A: Fn(f64, u32) -> f64,
+        P: Fn(u32) -> TargetF,
+        A: Fn(TargetF, u32) -> TargetF,
     {
         let mut table: Vec<(f32, Vec<f32>)> = vec![];
-        let mut pitch = min_pitch;
-        let p_factor = pow(2.0, 1.0 / tables_per_octave);
+        let mut pitch: TargetF = min_pitch;
+        let p_factor: TargetF = pow(2.0, 1.0 / tables_per_octave);
         let mut max_amplitude = 0.0;
         while pitch <= max_pitch {
             let wave = make_wave(pitch, phase, amplitude);
@@ -128,19 +129,19 @@ impl Wavetable {
     /// `tables_per_octave` is the number of wavetables per octave
     /// (for example, 4.0). The overall scale of numbers in `wave` is ignored;
     /// the wavetable is normalized to -1...1.
-    pub fn from_wave(min_pitch: f64, max_pitch: f64, tables_per_octave: f64, wave: &[f32]) -> Self {
+    pub fn from_wave(min_pitch: TargetF, max_pitch: TargetF, tables_per_octave: TargetF, wave: &[f32]) -> Self {
         let mut spectrum = vec![Complex32::new(0.0, 0.0); wave.len() / 2 + 1];
         super::fft::real_fft(wave, &mut spectrum);
         let phase = |i: u32| {
             if (i as usize) < spectrum.len() {
-                spectrum[i as usize].arg() as f64 / f64::TAU
+                spectrum[i as usize].arg() as TargetF / TargetF::TAU
             } else {
                 0.0
             }
         };
-        let amplitude = |_p: f64, i: u32| {
+        let amplitude = |_p: TargetF, i: u32| {
             if (i as usize) < spectrum.len() {
-                spectrum[i as usize].norm() as f64
+                spectrum[i as usize].norm() as TargetF
             } else {
                 0.0
             }
@@ -289,7 +290,7 @@ impl<N> AudioNode for WaveSynth<N>
 where
     N: Size<f32>,
 {
-    const ID: u64 = 34;
+    const ID: TargetU = 34;
     type Inputs = numeric_array::typenum::U1;
     type Outputs = N;
 
@@ -297,12 +298,12 @@ where
         self.phase = self.initial_phase;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate as f32;
         self.sample_duration = 1.0 / sample_rate as f32;
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.initial_phase = super::math::rnd1(hash) as f32;
         self.phase = self.initial_phase;
     }
@@ -348,7 +349,7 @@ where
         self.process_remainder(size, input, output);
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Generator(0.0).route(input, self.outputs())
     }
 }
@@ -379,7 +380,7 @@ impl PhaseSynth {
 }
 
 impl AudioNode for PhaseSynth {
-    const ID: u64 = 35;
+    const ID: TargetU = 35;
     type Inputs = numeric_array::typenum::U1;
     type Outputs = numeric_array::typenum::U1;
 
@@ -387,7 +388,7 @@ impl AudioNode for PhaseSynth {
         self.phase_ready = false;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate as f32;
     }
 
@@ -421,7 +422,7 @@ impl AudioNode for PhaseSynth {
         })
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Generator(0.0).route(input, self.outputs())
     }
 }
@@ -455,14 +456,14 @@ impl PulseWave {
 }
 
 impl AudioNode for PulseWave {
-    const ID: u64 = 44;
+    const ID: TargetU = 44;
     type Inputs = U2;
     type Outputs = U1;
 
     fn reset(&mut self) {
         self.pulse.reset();
     }
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.pulse.set_sample_rate(sample_rate);
     }
     fn tick(&mut self, input: &Frame<f32, Self::Inputs>) -> Frame<f32, Self::Outputs> {
@@ -471,7 +472,7 @@ impl AudioNode for PulseWave {
     fn process(&mut self, size: usize, input: &BufferRef, output: &mut BufferMut) {
         self.pulse.process(size, input, output);
     }
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.pulse.route(input, frequency)
     }
     fn ping(&mut self, probe: bool, hash: AttoHash) -> AttoHash {
@@ -492,7 +493,7 @@ pub fn saw_table() -> Arc<Wavetable> {
                 4.0,
                 // To build the classic saw shape, shift even partials 180 degrees.
                 &|i| if (i & 1) == 1 { 0.0 } else { 0.5 },
-                &|_, i| 1.0 / i as f64,
+                &|_, i| 1.0 / i as TargetF,
             );
             Box::new(Arc::new(table))
         })
@@ -505,7 +506,7 @@ pub fn square_table() -> Arc<Wavetable> {
         .get_or_init(|| {
             let table = Wavetable::new(20.0, 20_000.0, 4.0, &|_| 0.0, &|_, i| {
                 if (i & 1) == 1 {
-                    1.0 / i as f64
+                    1.0 / i as TargetF
                 } else {
                     0.0
                 }
@@ -527,7 +528,7 @@ pub fn triangle_table() -> Arc<Wavetable> {
                 &|i| if (i & 3) == 3 { 0.5 } else { 0.0 },
                 &|_, i| {
                     if (i & 1) == 1 {
-                        1.0 / (i * i) as f64
+                        1.0 / (i * i) as TargetF
                     } else {
                         0.0
                     }
@@ -559,7 +560,7 @@ pub fn organ_table() -> Arc<Wavetable> {
                 &|_, i| {
                     let z = i.trailing_zeros();
                     let j = i >> z;
-                    1.0 / (i + j * j * j) as f64
+                    1.0 / (i + j * j * j) as TargetF
                 },
             );
             Box::new(Arc::new(table))
@@ -585,7 +586,7 @@ pub fn soft_saw_table() -> Arc<Wavetable> {
                         0.5
                     }
                 },
-                &|_, i| 1.0 / (i * i) as f64,
+                &|_, i| 1.0 / (i * i) as TargetF,
             );
             Box::new(Arc::new(table))
         })
@@ -599,7 +600,7 @@ pub fn hammond_table() -> Arc<Wavetable> {
             let table = Wavetable::new(20.0, 20_000.0, 4.0, &|_| 0.0, &|_, i| {
                 let z = i.trailing_zeros();
                 let j = i >> z;
-                let f = 1.0 / ((z + 1) * (z + 1)) as f64;
+                let f = 1.0 / ((z + 1) * (z + 1)) as TargetF;
                 match i {
                     1 => return 1.0,
                     2 => return 1.0,

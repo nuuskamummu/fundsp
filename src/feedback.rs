@@ -5,6 +5,7 @@ use super::audiounit::*;
 use super::buffer::*;
 use super::math::*;
 use super::signal::*;
+use super::target_width::*;
 use super::*;
 use core::marker::PhantomData;
 extern crate alloc;
@@ -51,7 +52,7 @@ impl<N: Size<f32>> FrameUnop<N> for FrameHadamard<N> {
             }
             h *= 2;
         }
-        output * Frame::splat((1.0 / sqrt(N::I32 as f64)) as f32)
+        output * Frame::splat((1.0 / sqrt(N::I32 as TargetF)) as f32)
     }
     // Not implemented.
     // TODO: Hadamard is a special op because of interchannel dependencies.
@@ -110,7 +111,7 @@ where
     X::Outputs: Size<f32>,
     U: FrameUnop<X::Outputs>,
 {
-    const ID: u64 = 11;
+    const ID: TargetU = 11;
     type Inputs = N;
     type Outputs = N;
 
@@ -119,7 +120,7 @@ where
         self.value = Frame::default();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
     }
 
@@ -142,7 +143,7 @@ where
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Arbitrary(0.0).route(input, self.outputs())
     }
 
@@ -218,7 +219,7 @@ where
     Y::Outputs: Size<f32>,
     U: FrameUnop<X::Outputs>,
 {
-    const ID: u64 = 66;
+    const ID: TargetU = 66;
     type Inputs = N;
     type Outputs = N;
 
@@ -228,7 +229,7 @@ where
         self.value = Frame::default();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
         self.y.set_sample_rate(sample_rate);
     }
@@ -252,7 +253,7 @@ where
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Arbitrary(0.0).route(input, self.outputs())
     }
 
@@ -273,9 +274,9 @@ pub struct FeedbackUnit {
     /// Number of input and output channels.
     channels: usize,
     /// Current sample rate of the unit.
-    sample_rate: f64,
+    sample_rate: TargetF,
     /// Delay in seconds.
-    delay: f64,
+    delay: TargetF,
     /// Delay in samples.
     samples: usize,
     /// Feedback buffers, one per channel, power-of-two sized.
@@ -297,7 +298,7 @@ impl FeedbackUnit {
     /// The delay amount is rounded to the nearest sample.
     /// The minimum delay is one sample, which may also be accomplished by setting `delay` to zero.
     /// The feedback unit mixes back delayed output of contained unit `x` to its input.
-    pub fn new(delay: f64, x: Box<dyn AudioUnit>) -> Self {
+    pub fn new(delay: TargetF, x: Box<dyn AudioUnit>) -> Self {
         let channels = x.inputs();
         assert_eq!(channels, x.outputs());
         let mut unit = Self {
@@ -333,7 +334,7 @@ impl AudioUnit for FeedbackUnit {
         self.index = 0;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         if self.sample_rate != sample_rate {
             self.sample_rate = sample_rate;
             self.x.set_sample_rate(sample_rate);
@@ -409,12 +410,12 @@ impl AudioUnit for FeedbackUnit {
         self.feedback.len()
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Arbitrary(0.0).route(input, self.outputs())
     }
 
-    fn get_id(&self) -> u64 {
-        const ID: u64 = 79;
+    fn get_id(&self) -> TargetU {
+        const ID: TargetU = 79;
         ID
     }
 

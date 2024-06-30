@@ -6,6 +6,7 @@ use super::buffer::*;
 use super::combinator::*;
 use super::math::*;
 use super::signal::*;
+use super::target_width::*;
 use super::*;
 use numeric_array::typenum::Unsigned;
 use numeric_array::*;
@@ -20,7 +21,7 @@ pub struct Wave {
     /// Vector of channels. Each channel is stored in its own vector.
     vec: Vec<Vec<f32>>,
     /// Sample rate of the wave.
-    sample_rate: f64,
+    sample_rate: TargetF,
     /// Length of the wave in samples. This is 0 if there are no channels.
     len: usize,
 }
@@ -33,7 +34,7 @@ impl Wave {
     /// use fundsp::wave::*;
     /// let wave = Wave::new(2, 44100.0);
     /// ```
-    pub fn new(channels: usize, sample_rate: f64) -> Self {
+    pub fn new(channels: usize, sample_rate: TargetF) -> Self {
         let mut vec = Vec::with_capacity(channels);
         for _i in 0..channels {
             vec.push(Vec::new());
@@ -53,7 +54,7 @@ impl Wave {
     /// use fundsp::wave::*;
     /// let wave = Wave::with_capacity(2, 44100.0, 44100);
     /// ```
-    pub fn with_capacity(channels: usize, sample_rate: f64, capacity: usize) -> Self {
+    pub fn with_capacity(channels: usize, sample_rate: TargetF, capacity: usize) -> Self {
         let mut vec = Vec::with_capacity(channels);
         for _i in 0..channels {
             vec.push(Vec::with_capacity(capacity));
@@ -74,7 +75,7 @@ impl Wave {
     /// let wave = Wave::zero(1, 44100.0, 1.0);
     /// assert!(wave.duration() == 1.0 && wave.amplitude() == 0.0);
     /// ```
-    pub fn zero(channels: usize, sample_rate: f64, duration: f64) -> Self {
+    pub fn zero(channels: usize, sample_rate: TargetF, duration: TargetF) -> Self {
         let length = (duration * sample_rate).round() as usize;
         assert!(channels > 0 || length == 0);
         let mut vec = Vec::with_capacity(channels);
@@ -98,7 +99,7 @@ impl Wave {
     /// let wave = Wave::from_samples(44100.0, &[0.0; 22050]);
     /// assert!(wave.channels() == 1 && wave.duration() == 0.5 && wave.amplitude() == 0.0);
     /// ```
-    pub fn from_samples(sample_rate: f64, samples: &[f32]) -> Self {
+    pub fn from_samples(sample_rate: TargetF, samples: &[f32]) -> Self {
         Self {
             vec: alloc::vec![Vec::from(samples); 1],
             sample_rate,
@@ -107,12 +108,12 @@ impl Wave {
     }
 
     /// The sample rate of the wave.
-    pub fn sample_rate(&self) -> f64 {
+    pub fn sample_rate(&self) -> TargetF {
         self.sample_rate
     }
 
     /// Set the sample rate. No resampling is done.
-    pub fn set_sample_rate(&mut self, sample_rate: f64) {
+    pub fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate;
     }
 
@@ -240,8 +241,8 @@ impl Wave {
     /// assert!(wave.duration() == 0.0);
     /// ```
     #[inline]
-    pub fn duration(&self) -> f64 {
-        self.length() as f64 / self.sample_rate()
+    pub fn duration(&self) -> TargetF {
+        self.length() as TargetF / self.sample_rate()
     }
 
     /// Resizes the wave in-place. Any new samples are set to zero.
@@ -315,11 +316,11 @@ impl Wave {
     /// let mut wave = Wave::render(44100.0, 10.0, &mut(white()));
     /// wave.fade_in(1.0);
     /// ```
-    pub fn fade_in(&mut self, time: f64) {
+    pub fn fade_in(&mut self, time: TargetF) {
         assert!(time <= self.duration());
         let fade_n = round(time * self.sample_rate());
         for i in 0..fade_n as usize {
-            let a = smooth5((i + 1) as f64 / (fade_n + 1.0)) as f32;
+            let a = smooth5((i + 1) as TargetF / (fade_n + 1.0)) as f32;
             for channel in 0..self.channels() {
                 self.set(channel, i, self.at(channel, i) * a);
             }
@@ -336,12 +337,12 @@ impl Wave {
     /// let mut wave = Wave::render(44100.0, 10.0, &mut(brown() | brown()));
     /// wave.fade_out(5.0);
     /// ```
-    pub fn fade_out(&mut self, time: f64) {
+    pub fn fade_out(&mut self, time: TargetF) {
         assert!(time <= self.duration());
         let fade_n = round(time * self.sample_rate());
         let fade_i = fade_n as usize;
         for i in 0..fade_i {
-            let a = smooth5((fade_n - i as f64) / (fade_n + 1.0)) as f32;
+            let a = smooth5((fade_n - i as TargetF) / (fade_n + 1.0)) as f32;
             let sample = self.len() - fade_i + i;
             for channel in 0..self.channels() {
                 self.set(channel, sample, self.at(channel, sample) * a);
@@ -359,7 +360,7 @@ impl Wave {
     /// let mut wave = Wave::render(44100.0, 10.0, &mut(pink() | pink()));
     /// wave.fade(1.0);
     /// ```
-    pub fn fade(&mut self, time: f64) {
+    pub fn fade(&mut self, time: TargetF) {
         self.fade_in(time);
         self.fade_out(time);
     }
@@ -374,7 +375,7 @@ impl Wave {
     /// let wave = Wave::render(44100.0, 10.0, &mut (brown() | brown()));
     /// assert!(wave.sample_rate() == 44100.0 && wave.channels() == 2 && wave.duration() == 10.0);
     /// ```
-    pub fn render(sample_rate: f64, duration: f64, node: &mut dyn AudioUnit) -> Self {
+    pub fn render(sample_rate: TargetF, duration: TargetF, node: &mut dyn AudioUnit) -> Self {
         assert_eq!(node.inputs(), 0);
         assert!(node.outputs() > 0);
         assert!(duration >= 0.0);
@@ -408,20 +409,20 @@ impl Wave {
     /// ### Example: Render 10 Seconds Of Square-Like Wave With Look-Ahead Limiter
     /// ```
     /// use fundsp::hacker32::*;
-    /// let wave = Wave::render_latency(44100.0, 10.0, &mut (lfo(|t| (440.0, exp(-t))) >> dsf_square() >> limiter(0.5, 0.5)));
+    /// let wave = Wave::render_latency(44100.0, 10.0, &mut (lfo(|t: TargetF| (440.0, exp(-t))) >> dsf_square() >> limiter(0.5, 0.5)));
     /// assert!(wave.amplitude() <= 1.0 && wave.duration() == 10.0 && wave.sample_rate() == 44100.0);
     /// ```
-    pub fn render_latency(sample_rate: f64, duration: f64, node: &mut dyn AudioUnit) -> Self {
+    pub fn render_latency(sample_rate: TargetF, duration: TargetF, node: &mut dyn AudioUnit) -> Self {
         assert_eq!(node.inputs(), 0);
         assert!(node.outputs() > 0);
         assert!(duration >= 0.0);
         let latency = node.latency().unwrap_or_default();
         // Round latency down to nearest sample.
         let latency_samples = floor(latency) as usize;
-        let latency_duration = latency_samples as f64 / sample_rate;
+        let latency_duration = latency_samples as TargetF / sample_rate;
         // Round duration to nearest sample.
         let duration_samples = round(duration * sample_rate) as usize;
-        let duration = duration_samples as f64 / sample_rate;
+        let duration = duration_samples as TargetF / sample_rate;
         if latency_samples > 0 {
             let latency_wave = Self::render(sample_rate, duration + latency_duration, node);
             let mut wave = Self::zero(node.outputs(), sample_rate, duration);
@@ -445,13 +446,13 @@ impl Wave {
     /// ### Example: Reverberate A Square Wave
     /// ```
     /// use fundsp::hacker32::*;
-    /// let wave1 = Wave::render(44100.0, 1.0, &mut (lfo(|t| xerp11(215.0, 225.0, sin_hz(8.0, t))) >> square() >> pan(0.0)));
+    /// let wave1 = Wave::render(44100.0, 1.0, &mut (lfo(|t: TargetF| xerp11(215.0, 225.0, sin_hz(8.0, t))) >> square() >> pan(0.0)));
     /// assert!(wave1.channels() == 2 && wave1.duration() == 1.0);
     /// let mut processor = 0.2 * reverb_stereo(10.0, 1.0, 0.5) & multipass();
     /// let wave2 = wave1.filter(2.0, &mut processor);
     /// assert!(wave2.channels() == 2 && wave2.duration() == 2.0);
     /// ```
-    pub fn filter(&self, duration: f64, node: &mut dyn AudioUnit) -> Self {
+    pub fn filter(&self, duration: TargetF, node: &mut dyn AudioUnit) -> Self {
         assert_eq!(node.inputs(), self.channels());
         assert!(node.outputs() > 0);
         assert!(duration >= 0.0);
@@ -506,17 +507,17 @@ impl Wave {
     /// The `node` must have as many inputs as there are channels in this wave.
     /// All zeros input is used for the rest of the wave if
     /// the `duration` is greater than the duration of this wave.
-    pub fn filter_latency(&self, duration: f64, node: &mut dyn AudioUnit) -> Self {
+    pub fn filter_latency(&self, duration: TargetF, node: &mut dyn AudioUnit) -> Self {
         assert_eq!(node.inputs(), self.channels());
         assert!(node.outputs() > 0);
         assert!(duration >= 0.0);
         let latency = node.latency().unwrap_or_default();
         // Round latency down to nearest sample.
         let latency_samples = floor(latency) as usize;
-        let latency_duration = latency_samples as f64 / self.sample_rate();
+        let latency_duration = latency_samples as TargetF / self.sample_rate();
         // Round duration to nearest sample.
         let duration_samples = round(duration * self.sample_rate()) as usize;
-        let duration = duration_samples as f64 / self.sample_rate();
+        let duration = duration_samples as TargetF / self.sample_rate();
         if latency_samples > 0 {
             let latency_wave = self.filter(duration + latency_duration, node);
             let mut wave = Self::zero(node.outputs(), self.sample_rate(), duration);
@@ -564,7 +565,7 @@ impl WavePlayer {
 }
 
 impl AudioNode for WavePlayer {
-    const ID: u64 = 65;
+    const ID: TargetU = 65;
     type Inputs = typenum::U0;
     type Outputs = typenum::U1;
 
@@ -588,7 +589,7 @@ impl AudioNode for WavePlayer {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Generator(0.0).route(input, self.outputs())
     }
 }

@@ -8,6 +8,7 @@ use super::signal::*;
 use super::*;
 use core::marker::PhantomData;
 use numeric_array::*;
+use target_width::*;
 
 /// Return equal power pan weights for pan value in -1...1.
 #[inline]
@@ -47,7 +48,7 @@ impl<N: Size<f32>> Panner<N> {
 }
 
 impl<N: Size<f32>> AudioNode for Panner<N> {
-    const ID: u64 = 49;
+    const ID: TargetU = 49;
     type Inputs = N;
     type Outputs = typenum::U2;
 
@@ -81,11 +82,11 @@ impl<N: Size<f32>> AudioNode for Panner<N> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         // Pretend the pan value is constant.
-        output.set(0, input.at(0).scale(self.left_weight.to_f64()));
-        output.set(1, input.at(0).scale(self.right_weight.to_f64()));
+        output.set(0, input.at(0).scale(self.left_weight.to_target_f()));
+        output.set(1, input.at(0).scale(self.right_weight.to_target_f()));
         output
     }
 }
@@ -115,7 +116,7 @@ where
     M: Size<f32>,
     N: Size<f32> + Size<Frame<f32, M>>,
 {
-    const ID: u64 = 84;
+    const ID: TargetU = 84;
     type Inputs = M;
     type Outputs = N;
 
@@ -130,7 +131,7 @@ where
         })
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         for i in 0..self.outputs() {
             output.set(i, input.at(0).scale(convert(self.matrix[i][0])));

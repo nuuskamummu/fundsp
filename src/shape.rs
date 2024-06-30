@@ -4,6 +4,7 @@ use super::audionode::*;
 use super::buffer::*;
 use super::math::*;
 use super::signal::*;
+use super::target_width::*;
 use super::*;
 use numeric_array::typenum::*;
 
@@ -27,7 +28,7 @@ pub trait Shape: Clone + Sync + Send {
     }
     /// Set the sample rate. The default sample rate is 44.1 kHz.
     #[allow(unused_variables)]
-    fn set_sample_rate(&mut self, sample_rate: f64) {}
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {}
     /// Reset state.
     fn reset(&mut self) {}
 }
@@ -184,8 +185,8 @@ impl Shape for AdaptiveTanh {
     fn reset(&mut self) {
         self.state = 0.0;
     }
-    fn set_sample_rate(&mut self, sample_rate: f64) {
-        self.smoothing = pow(0.5, 1.0 / (self.timescale.to_f64() * sample_rate)).to_f32();
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
+        self.smoothing = pow(0.5, 1.0 / (self.timescale.to_target_f() * sample_rate)).to_f32();
     }
 }
 
@@ -204,7 +205,7 @@ impl<S: Shape> Shaper<S> {
 }
 
 impl<S: Shape> AudioNode for Shaper<S> {
-    const ID: u64 = 42;
+    const ID: TargetU = 42;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -212,7 +213,7 @@ impl<S: Shape> AudioNode for Shaper<S> {
         self.shape.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.shape.set_sample_rate(sample_rate);
     }
 
@@ -230,7 +231,7 @@ impl<S: Shape> AudioNode for Shaper<S> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(0, input.at(0).distort(0.0));
         output

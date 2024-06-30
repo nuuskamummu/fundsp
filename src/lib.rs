@@ -22,9 +22,9 @@
 use core::cmp::PartialEq;
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
-
+use target_width::*;
 /// Default sample rate is 44.1 kHz.
-pub const DEFAULT_SR: f64 = 44_100.0;
+pub const DEFAULT_SR: TargetF = 44_100.0;
 
 /// Maximum buffer size for block processing is 64 samples.
 pub const MAX_BUFFER_SIZE: usize = 64;
@@ -86,8 +86,9 @@ pub trait Num:
 {
     fn zero() -> Self;
     fn one() -> Self;
-    fn new(x: i64) -> Self;
+    fn new(x: TargetI) -> Self;
     fn from_f64(x: f64) -> Self;
+    fn from_target_f(x: TargetF) -> Self;
     fn from_f32(x: f32) -> Self;
     fn abs(self) -> Self;
     fn signum(self) -> Self;
@@ -106,8 +107,9 @@ macro_rules! impl_signed_num {
     $( impl Num for $t {
         #[inline(always)] fn zero() -> Self { 0 }
         #[inline(always)] fn one() -> Self { 1 }
-        #[inline(always)] fn new(x: i64) -> Self { x as Self }
+        #[inline(always)] fn new(x: TargetI) -> Self { x as Self }
         #[inline(always)] fn from_f64(x: f64) -> Self { x as Self }
+        #[inline(always)] fn from_target_f(x: TargetF) -> Self { x as Self }
         #[inline(always)] fn from_f32(x: f32) -> Self { x as Self }
         #[inline(always)] fn abs(self) -> Self { <$t>::abs(self) }
         #[inline(always)] fn signum(self) -> Self { <$t>::signum(self) }
@@ -127,8 +129,9 @@ macro_rules! impl_unsigned_num {
     $( impl Num for $t {
         #[inline(always)] fn zero() -> Self { 0 }
         #[inline(always)] fn one() -> Self { 1 }
-        #[inline(always)] fn new(x: i64) -> Self { x as Self }
+        #[inline(always)] fn new(x: TargetI) -> Self { x as Self }
         #[inline(always)] fn from_f64(x: f64) -> Self { x as Self }
+        #[inline(always)] fn from_target_f(x: TargetF) -> Self { x as Self }
         #[inline(always)] fn from_f32(x: f32) -> Self { x as Self }
         #[inline(always)] fn abs(self) -> Self { self }
         #[inline(always)] fn signum(self) -> Self { 1 }
@@ -153,11 +156,15 @@ impl Num for f32 {
         1.0
     }
     #[inline(always)]
-    fn new(x: i64) -> Self {
+    fn new(x: TargetI) -> Self {
         x as Self
     }
     #[inline(always)]
     fn from_f64(x: f64) -> Self {
+        x as Self
+    }
+    #[inline(always)]
+    fn from_target_f(x: TargetF) -> Self {
         x as Self
     }
     #[inline(always)]
@@ -208,11 +215,15 @@ impl Num for f64 {
         1.0
     }
     #[inline(always)]
-    fn new(x: i64) -> Self {
+    fn new(x: TargetI) -> Self {
         x as Self
     }
     #[inline(always)]
     fn from_f64(x: f64) -> Self {
+        x as Self
+    }
+    #[inline(always)]
+    fn from_target_f(x: TargetF) -> Self {
         x as Self
     }
     #[inline(always)]
@@ -263,11 +274,15 @@ impl Num for F32x {
         F32x::ONE
     }
     #[inline(always)]
-    fn new(x: i64) -> Self {
+    fn new(x: TargetI) -> Self {
         F32x::splat(x as f32)
     }
     #[inline(always)]
     fn from_f64(x: f64) -> Self {
+        F32x::splat(x as f32)
+    }
+    #[inline(always)]
+    fn from_target_f(x: TargetF) -> Self {
         F32x::splat(x as f32)
     }
     #[inline(always)]
@@ -343,7 +358,10 @@ pub trait Float: Num + PartialOrd + Neg<Output = Self> {
     fn from_float<T: Float>(x: T) -> Self;
     fn to_f64(self) -> f64;
     fn to_f32(self) -> f32;
+    fn to_target_f(self) -> TargetF;
     fn to_i64(self) -> i64;
+    fn to_target_i(self) -> TargetI;
+
 }
 
 impl Float for f32 {
@@ -367,9 +385,19 @@ impl Float for f32 {
     }
 
     #[inline(always)]
+    fn to_target_f(self) -> TargetF {
+        self as TargetF
+    }
+
+    #[inline(always)]
     fn to_i64(self) -> i64 {
         self as i64
     }
+    #[inline(always)]
+    fn to_target_i(self) -> TargetI {
+        self as TargetI
+    }
+    
 }
 
 impl Float for f64 {
@@ -391,10 +419,18 @@ impl Float for f64 {
     fn to_f32(self) -> f32 {
         self as f32
     }
+    #[inline(always)]
+    fn to_target_f(self) -> TargetF {
+        self as TargetF
+    }
 
     #[inline(always)]
     fn to_i64(self) -> i64 {
         self as i64
+    }
+    #[inline(always)]
+    fn to_target_i(self) -> TargetI {
+        self as TargetI
     }
 }
 
@@ -533,6 +569,7 @@ pub mod hacker32;
 pub mod math;
 pub mod moog;
 pub mod net;
+pub mod node;
 pub mod noise;
 pub mod oscillator;
 pub mod oversample;
@@ -554,6 +591,7 @@ pub mod snoop;
 pub mod sound;
 pub mod svf;
 pub mod system;
+pub mod target_width;
 pub mod wave;
 pub mod wavetable;
 
@@ -563,6 +601,7 @@ pub use generic_array::sequence::GenericSequence;
 pub use funutd;
 pub use numeric_array;
 pub use numeric_array::typenum;
+use target_width::TargetF;
 pub use thingbuf;
 pub use wide;
 

@@ -1,5 +1,7 @@
 //! Audio dynamics related components.
 
+use core::sync::atomic::AtomicU32;
+
 use super::audionode::*;
 use super::buffer::*;
 use super::follow::*;
@@ -7,7 +9,7 @@ use super::math::*;
 use super::shared::*;
 use super::signal::*;
 use super::*;
-use core::sync::atomic::AtomicU32;
+use super::target_width::*;
 use numeric_array::typenum::*;
 extern crate alloc;
 use alloc::sync::Arc;
@@ -126,10 +128,10 @@ pub struct Limiter<N>
 where
     N: Size<f32>,
 {
-    lookahead: f64,
+    lookahead: TargetF,
     #[allow(dead_code)]
-    release: f64,
-    sample_rate: f64,
+    release: TargetF,
+    sample_rate: TargetF,
     reducer: ReduceBuffer<f32, Maximum<f32>>,
     follower: AFollow<f32>,
     buffer: Vec<Frame<f32, N>>,
@@ -148,24 +150,24 @@ where
         }
     }
 
-    fn buffer_length(sample_rate: f64, lookahead: f64) -> usize {
+    fn buffer_length(sample_rate: TargetF, lookahead: TargetF) -> usize {
         max(1, round(sample_rate * lookahead) as usize)
     }
 
-    fn new_buffer(sample_rate: f64, lookahead: f64) -> ReduceBuffer<f32, Maximum<f32>> {
+    fn new_buffer(sample_rate: TargetF, lookahead: TargetF) -> ReduceBuffer<f32, Maximum<f32>> {
         ReduceBuffer::new(Self::buffer_length(sample_rate, lookahead), Maximum::new())
     }
 
-    pub fn new(sample_rate: f64, attack_time: f32, release_time: f32) -> Self {
+    pub fn new(sample_rate: TargetF, attack_time: f32, release_time: f32) -> Self {
         let mut follower = AFollow::new(attack_time * 0.4, release_time * 0.4);
         follower.set_sample_rate(sample_rate);
         Limiter {
-            lookahead: attack_time as f64,
-            release: release_time as f64,
+            lookahead: attack_time as TargetF,
+            release: release_time as TargetF,
             sample_rate,
             follower,
             buffer: Vec::new(),
-            reducer: Self::new_buffer(sample_rate, attack_time.to_f64()),
+            reducer: Self::new_buffer(sample_rate, attack_time.to_target_f()),
             index: 0,
         }
     }
@@ -175,7 +177,7 @@ impl<N> AudioNode for Limiter<N>
 where
     N: Size<f32>,
 {
-    const ID: u64 = 25;
+    const ID: TargetU = 25;
     type Inputs = N;
     type Outputs = N;
 
@@ -183,7 +185,7 @@ where
         self.set_sample_rate(self.sample_rate);
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.index = 0;
         self.sample_rate = sample_rate;
         let length = Self::buffer_length(sample_rate, self.lookahead);
@@ -220,11 +222,11 @@ where
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         for i in 0..N::USIZE {
             // We pretend that the limiter does not alter the frequency response.
-            output.set(i, input.at(i).delay(self.reducer.length() as f64));
+            output.set(i, input.at(i).delay(self.reducer.length() as TargetF));
         }
         output
     }
@@ -246,7 +248,7 @@ pub struct Declick<F: Real> {
     t: F,
     duration: F,
     sample_duration: F,
-    sample_rate: f64,
+    sample_rate: TargetF,
 }
 
 impl<F: Real> Declick<F> {
@@ -261,7 +263,7 @@ impl<F: Real> Declick<F> {
 }
 
 impl<F: Real> AudioNode for Declick<F> {
-    const ID: u64 = 23;
+    const ID: TargetU = 23;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -269,9 +271,9 @@ impl<F: Real> AudioNode for Declick<F> {
         self.t = F::zero();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate;
-        self.sample_duration = F::from_f64(1.0 / sample_rate);
+        self.sample_duration = F::from_target_f(1.0 / sample_rate);
     }
 
     #[inline]
@@ -292,9 +294,9 @@ impl<F: Real> AudioNode for Declick<F> {
         if self.t < self.duration {
             let mut phase = delerp(F::zero(), self.duration, self.t);
             let phase_d = self.sample_duration / self.duration;
-            let end_time = self.t + F::new(size as i64) * self.sample_duration;
+            let end_time = self.t + F::new(size as TargetI) * self.sample_duration;
             let end_index = if self.duration < end_time {
-                ceil((self.duration - self.t) / self.sample_duration).to_i64() as usize
+                ceil((self.duration - self.t) / self.sample_duration).to_target_i() as usize
             } else {
                 size
             };
@@ -306,7 +308,7 @@ impl<F: Real> AudioNode for Declick<F> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         // We pretend that the declicker does not alter the frequency response.
         input.clone()
     }
@@ -319,10 +321,10 @@ pub enum Meter {
     Sample,
     /// Peak meter with smoothing timescale in seconds.
     /// Smoothing timescale is the time it takes for level estimation to move halfway to a new level.
-    Peak(f64),
+    Peak(TargetF),
     /// RMS meter with smoothing timescale in seconds.
     /// Smoothing timescale is the time it takes for level estimation to move halfway to a new level.
-    Rms(f64),
+    Rms(TargetF),
 }
 
 impl Meter {
@@ -357,7 +359,7 @@ impl MeterState {
     }
 
     /// Set meter sample rate.
-    pub fn set_sample_rate(&mut self, meter: Meter, sample_rate: f64) {
+    pub fn set_sample_rate(&mut self, meter: Meter, sample_rate: TargetF) {
         let timescale = match meter {
             Meter::Sample => {
                 return;
@@ -365,7 +367,7 @@ impl MeterState {
             Meter::Peak(timescale) => timescale,
             Meter::Rms(timescale) => timescale,
         };
-        self.smoothing = (pow(0.5f64, 1.0 / (timescale * sample_rate))).to_f32();
+        self.smoothing = (pow(0.5 as TargetF, 1.0 / (timescale * sample_rate))).to_f32();
     }
 
     /// Process an input sample.
@@ -411,7 +413,7 @@ impl MeterNode {
 }
 
 impl AudioNode for MeterNode {
-    const ID: u64 = 61;
+    const ID: TargetU = 61;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -419,7 +421,7 @@ impl AudioNode for MeterNode {
         self.state.reset(self.meter);
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.state.set_sample_rate(self.meter, sample_rate);
     }
 
@@ -429,7 +431,7 @@ impl AudioNode for MeterNode {
         [convert(self.state.level(self.meter))].into()
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(0, input.at(0).distort(0.0));
         output
@@ -466,7 +468,7 @@ impl Monitor {
 }
 
 impl AudioNode for Monitor {
-    const ID: u64 = 56;
+    const ID: TargetU = 56;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -474,7 +476,7 @@ impl AudioNode for Monitor {
         self.state.reset(self.meter);
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.state.set_sample_rate(self.meter, sample_rate);
     }
 
@@ -502,7 +504,7 @@ impl AudioNode for Monitor {
             .clone_from_slice(&input.channel(0)[..simd_items(size)]);
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         input.clone()
     }
 }

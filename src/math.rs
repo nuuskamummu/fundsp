@@ -3,7 +3,7 @@
 use super::*;
 
 pub use num_complex::Complex32;
-pub use num_complex::Complex64;
+pub use target_width::*;
 
 /// The absolute function.
 #[inline]
@@ -265,8 +265,8 @@ pub fn dexerp11<T: Real>(a: T, b: T, x: T) -> T {
 /// that take overtones and octave equivalence into account.
 #[inline]
 pub fn dissonance<T: Real>(f0: T, f1: T) -> T {
-    let q = abs(f0 - f1) / (T::from_f64(0.021) * min(f0, f1) + T::from_f64(19.0));
-    T::from_f64(5.531753) * (exp(T::from_f64(-0.84) * q) - exp(T::from_f64(-1.38) * q))
+    let q = abs(f0 - f1) / (T::from_target_f(0.021) * min(f0, f1) + T::from_target_f(19.0));
+    T::from_target_f(5.531753) * (exp(T::from_target_f(-0.84) * q) - exp(T::from_target_f(-1.38) * q))
 }
 
 /// Return the maximally dissonant pure frequency above `f` Hz.
@@ -279,7 +279,7 @@ pub fn dissonance<T: Real>(f0: T, f1: T) -> T {
 /// ```
 #[inline]
 pub fn dissonance_max<T: Num>(f: T) -> T {
-    T::from_f64(1.0193) * f + T::from_f64(17.4672)
+    T::from_target_f(1.0193) * f + T::from_target_f(17.4672)
 }
 
 /// Convert decibels to gain (aka amplitude). 0 dB = 1.0 (unity gain).
@@ -312,11 +312,11 @@ pub fn amp_db<T: Real>(gain: T) -> T {
 #[inline]
 pub fn a_weight<T: Real>(f: T) -> T {
     let f2 = squared(f);
-    let c0 = squared(T::from_f64(12194.0));
-    let c1 = squared(T::from_f64(20.6));
-    let c2 = squared(T::from_f64(107.7));
-    let c3 = squared(T::from_f64(737.9));
-    let c4 = T::from_f64(1.2589048990582914);
+    let c0 = squared(T::from_target_f(12194.0));
+    let c1 = squared(T::from_target_f(20.6));
+    let c2 = squared(T::from_target_f(107.7));
+    let c3 = squared(T::from_target_f(737.9));
+    let c4 = T::from_target_f(1.2589048990582914);
     c4 * c0 * f2 * f2 / ((f2 + c1) * sqrt((f2 + c2) * (f2 + c3)) * (f2 + c0))
 }
 
@@ -333,14 +333,14 @@ pub fn a_weight<T: Real>(f: T) -> T {
 /// ```
 #[inline]
 pub fn m_weight<T: Real>(f: T) -> T {
-    let c0 = T::from_f64(1.246332637532143 * 1.0e-4);
-    let c1 = T::from_f64(-4.737338981378384 * 1.0e-24);
-    let c2 = T::from_f64(2.04382833606125 * 1.0e-15);
-    let c3 = T::from_f64(-1.363894795463638 * 1.0e-7);
-    let c4 = T::from_f64(1.306612257412824 * 1.0e-19);
-    let c5 = T::from_f64(-2.118150887518656 * 1.0e-11);
-    let c6 = T::from_f64(5.559488023498642 * 1.0e-4);
-    let c7 = T::from_f64(8.164578311186197);
+    let c0 = T::from_target_f(1.246332637532143 * 1.0e-4);
+    let c1 = T::from_target_f(-4.737338981378384 * 1.0e-24);
+    let c2 = T::from_target_f(2.04382833606125 * 1.0e-15);
+    let c3 = T::from_target_f(-1.363894795463638 * 1.0e-7);
+    let c4 = T::from_target_f(1.306612257412824 * 1.0e-19);
+    let c5 = T::from_target_f(-2.118150887518656 * 1.0e-11);
+    let c6 = T::from_target_f(5.559488023498642 * 1.0e-4);
+    let c7 = T::from_target_f(8.164578311186197);
     let f2 = f * f;
     let f4 = f2 * f2;
     c7 * c0 * f
@@ -450,22 +450,22 @@ pub fn downarc<T: Real>(x: T) -> T {
 /// 90 degree sine ease.
 #[inline]
 pub fn sine_ease<T: Num>(x: T) -> T {
-    let x = x * T::from_f64(f64::PI * 0.5);
+    let x = x * T::from_target_f(TargetF::PI * 0.5);
     // Use Bhaskara's sine approximation.
-    T::new(16) * x * (T::from_f64(f64::PI) - x)
-        / (T::from_f64(5.0 * f64::PI * f64::PI) - T::new(4) * x * (T::from_f64(f64::PI) - x))
+    T::new(16) * x * (T::from_target_f(TargetF::PI) - x)
+        / (T::from_target_f(5.0 * TargetF::PI * TargetF::PI) - T::new(4) * x * (T::from_target_f(TargetF::PI) - x))
 }
 
 /// Sine that oscillates at the specified frequency (Hz). Time is input in seconds.
 #[inline]
 pub fn sin_hz<T: Real>(hz: T, t: T) -> T {
-    sin(t * hz * T::from_f64(f64::TAU))
+    sin(t * hz * T::from_target_f(TargetF::TAU))
 }
 
 /// Cosine that oscillates at the specified frequency (Hz). Time is input in seconds.
 #[inline]
 pub fn cos_hz<T: Real>(hz: T, t: T) -> T {
-    cos(t * hz * T::from_f64(f64::TAU))
+    cos(t * hz * T::from_target_f(TargetF::TAU))
 }
 
 /// Square wave that oscillates in the range -1...1 at the specified frequency (Hz).
@@ -526,13 +526,13 @@ pub fn semitone_ratio<T: Real>(x: T) -> T {
 /// passes statistical tests of randomness.
 /// Returns pseudorandom `f64` in 0...1.
 #[inline]
-pub fn rnd1(x: u64) -> f64 {
-    let x = x ^ 0x5555555555555555;
-    let x = x.wrapping_mul(0x9e3779b97f4a7c15);
-    let x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-    let x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111eb);
-    let x = x ^ (x >> 31);
-    (x >> 11) as f64 * (1.0 / (1u64 << 53) as f64)
+pub fn rnd1(x: TargetU) -> TargetF {
+    let x: TargetU = x ^ 0x5555555555555555;
+    let x: TargetU = x.wrapping_mul(0x9e3779b97f4a7c15);
+    let x: TargetU = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    let x: TargetU = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111eb);
+    let x: TargetU = x ^ (x >> 31);
+    (x >> 11) as TargetF * (1.0 / ((1 as TargetU) << 53) as TargetF)
 }
 
 /// Output hash of Krull64 as an indexed random number generator.
@@ -540,21 +540,21 @@ pub fn rnd1(x: u64) -> f64 {
 /// passes statistical tests of randomness.
 /// Returns pseudorandom `f64` in 0...1.
 #[inline]
-pub fn rnd2(x: u64) -> f64 {
-    let x = funutd::hash::hash64g(x);
-    (x >> 11) as f64 * (1.0 / (1u64 << 53) as f64)
+pub fn rnd2(x: TargetU) -> TargetF {
+    let x = funutd::hash::hash64g(x as u64) as TargetU;
+    (x >> 11) as TargetF * (1.0 / ((1 as TargetU) << 53) as TargetF)
 }
 
 /// 64-bit hash function.
 /// This hash is a pseudorandom permutation.
 /// Successive values of the hash pass statistical tests of randomness.
 #[inline]
-pub fn hash1(x: u64) -> u64 {
-    let x = x ^ 0x5555555555555555;
-    let x = x.wrapping_mul(0x517cc1b727220a95);
+pub fn hash1(x: TargetU) -> TargetU {
+    let x: TargetU = x ^ 0x5555555555555555;
+    let x: TargetU = x.wrapping_mul(0x517cc1b727220a95);
     // Following hash is by degsky.
-    let x = (x ^ (x >> 32)).wrapping_mul(0xd6e8feb86659fd93);
-    let x = (x ^ (x >> 32)).wrapping_mul(0xd6e8feb86659fd93);
+    let x: TargetU = (x ^ (x >> 32)).wrapping_mul(0xd6e8feb86659fd93);
+    let x: TargetU = (x ^ (x >> 32)).wrapping_mul(0xd6e8feb86659fd93);
     x ^ (x >> 32)
 }
 
@@ -562,8 +562,8 @@ pub fn hash1(x: u64) -> u64 {
 /// This hash is a pseudorandom permutation.
 /// Successive values of the hash pass statistical tests of randomness.
 #[inline]
-pub fn hash2(x: u64) -> u64 {
-    funutd::hash::hash64g(x)
+pub fn hash2(x: TargetU) -> TargetU {
+    funutd::hash::hash64g(x as u64) as TargetU
 }
 
 /// Convert MIDI note number to frequency in Hz. Returns 440 Hz for A_4 (note number 69).
@@ -590,23 +590,23 @@ pub fn bpm_hz<T: Num>(bpm: T) -> T {
 /// It is used in computing deterministic pseudorandom phase hashes.
 #[derive(Default, Clone)]
 pub struct AttoHash {
-    state: u64,
+    state: TargetU,
 }
 
 impl AttoHash {
     /// Create new hasher from seed.
     #[inline]
-    pub fn new(seed: u64) -> AttoHash {
+    pub fn new(seed: TargetU) -> AttoHash {
         AttoHash { state: seed }
     }
     /// Generator state.
     #[inline]
-    pub fn state(&self) -> u64 {
+    pub fn state(&self) -> TargetU {
         self.state
     }
     /// Hash `data`. Consumes self and returns a new `AttoHash`.
     #[inline]
-    pub fn hash(self, data: u64) -> Self {
+    pub fn hash(self, data: TargetU) -> Self {
         // Hash taken from FxHasher.
         AttoHash {
             state: self
@@ -619,14 +619,14 @@ impl AttoHash {
     /// Get current hash in 0...1.
     #[inline]
     pub fn hash01<T: Float>(self) -> T {
-        let x = funutd::hash::hash64a(self.state);
-        T::from_f64((x >> 11) as f64 / (1u64 << 53) as f64)
+        let x = funutd::hash::hash64a(self.state as u64) as TargetU;
+        T::from_target_f((x >> 11) as TargetF / ((1 as TargetU) << 53) as TargetF)
     }
     /// Get current hash in -1...1.
     #[inline]
     pub fn hash11<T: Float>(self) -> T {
-        let x = funutd::hash::hash64a(self.state);
-        T::from_f64((x >> 10) as f64 / (1u64 << 53) as f64 - 1.0)
+        let x = funutd::hash::hash64a(self.state as u64) as TargetU;
+        T::from_target_f((x >> 10) as TargetF / ((1  as TargetU) << 53) as TargetF - 1.0)
     }
 }
 
@@ -669,13 +669,13 @@ where
 /// Each integer cell is an interpolation segment.
 /// Easing function `ease` (for example, `smooth3`) can be asymmetric:
 /// `(r, f)` employs `r` for rising and `f` for falling segments.
-pub fn ease_noise<T: Float>(ease: impl SegmentInterpolator<T>, seed: i64, x: T) -> T {
+pub fn ease_noise<T: Float>(ease: impl SegmentInterpolator<T>, seed: TargetI, x: T) -> T {
     let fx = floor(x);
     let dx = x - fx;
-    let ix = fx.to_i64();
+    let ix = fx.to_target_i();
 
-    fn get_point<T: Float>(seed: i64, i: i64) -> T {
-        AttoHash::new(seed as u64).hash(i as u64).hash11()
+    fn get_point<T: Float>(seed: TargetI, i: TargetI) -> T {
+        AttoHash::new(seed as TargetU).hash(i as TargetU).hash11()
     }
 
     let y1 = get_point(seed, ix);
@@ -688,15 +688,15 @@ pub fn ease_noise<T: Float>(ease: impl SegmentInterpolator<T>, seed: i64, x: T) 
 /// Value noise interpolated with a cubic spline.
 /// The noise follows a roughly triangular distribution in -1...1.
 /// Each integer cell, offset pseudorandomly, is an interpolation segment.
-pub fn spline_noise<T: Float>(seed: u64, x: T) -> T {
+pub fn spline_noise<T: Float>(seed: TargetU, x: T) -> T {
     // Employ a pseudorandom offset.
-    let x = x + T::from_f64(rnd2(seed));
+    let x = x + T::from_target_f(rnd2(seed));
     let fx = floor(x);
     let dx = x - fx;
-    let ix = fx.to_i64();
+    let ix = fx.to_target_i();
 
-    fn get_point<T: Float>(seed: u64, i: i64) -> T {
-        AttoHash::new(seed).hash(i as u64).hash11()
+    fn get_point<T: Float>(seed: TargetU, i: TargetI) -> T {
+        AttoHash::new(seed).hash(i as TargetU).hash11()
     }
 
     let y0 = get_point(seed, ix.wrapping_sub(1));
@@ -713,17 +713,17 @@ pub fn spline_noise<T: Float>(seed: u64, x: T) -> T {
 /// Sums octaves (`octaves` > 0) of spline noise.
 /// The lowest frequency of the noise is 1, with each successive octave doubling in frequency.
 /// Roughness (`roughness` > 0) is the multiplicative weighting of successive octaves. For example, 0.5.
-pub fn fractal_noise<T: Float>(seed: i64, octaves: i64, roughness: T, x: T) -> T {
+pub fn fractal_noise<T: Float>(seed: TargetI, octaves: TargetI, roughness: T, x: T) -> T {
     assert!(octaves > 0);
     let mut octave_weight = T::one();
     let mut total_weight = T::zero();
     let mut frequency = T::one();
     let mut result = T::zero();
-    let mut rnd = funutd::Rnd::from_u64(seed as u64);
+    let mut rnd = rnd_from_target_u(seed as TargetU);
     for _octave in 0..octaves {
         // Employ a pseudorandom offset for each octave.
         let octave_x = x * frequency + T::from_f32(rnd.f32());
-        result += octave_weight * spline_noise(rnd.u64(), octave_x);
+        result += octave_weight * spline_noise(rnd_target_u(&mut rnd), octave_x);
         total_weight += octave_weight;
         octave_weight *= roughness;
         frequency *= T::new(2);
@@ -737,8 +737,8 @@ pub fn fractal_noise<T: Float>(seed: i64, octaves: i64, roughness: T, x: T) -> T
 /// Roughness (`roughness` > 0) is the multiplicative weighting of successive octaves. For example, 0.5.
 pub fn fractal_ease_noise<T: Float>(
     ease: impl SegmentInterpolator<T>,
-    seed: i64,
-    octaves: i64,
+    seed: TargetI,
+    octaves: TargetI,
     roughness: T,
     x: T,
 ) -> T {
@@ -747,11 +747,11 @@ pub fn fractal_ease_noise<T: Float>(
     let mut total_weight = T::zero();
     let mut frequency = T::one();
     let mut result = T::zero();
-    let mut rnd = funutd::Rnd::from_u64(seed as u64);
+    let mut rnd = rnd_from_target_u(seed as TargetU);
     for _octave in 0..octaves {
         // Employ a pseudorandom offset for each octave.
         let octave_x = x * frequency + T::from_f32(rnd.f32());
-        result += octave_weight * ease_noise(ease.clone(), rnd.i64(), octave_x);
+        result += octave_weight * ease_noise(ease.clone(), rnd_target_i(&mut rnd), octave_x);
         total_weight += octave_weight;
         octave_weight *= roughness;
         frequency *= T::new(2);

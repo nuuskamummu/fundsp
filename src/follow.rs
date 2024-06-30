@@ -5,8 +5,8 @@ use super::combinator::*;
 use super::math::*;
 use super::setting::*;
 use super::signal::*;
+use super::target_width::*;
 use super::*;
-use num_complex::Complex64;
 use numeric_array::typenum::*;
 
 /// Logistic sigmoid.
@@ -15,7 +15,7 @@ fn logistic<T: Real>(x: T) -> T {
     T::one() / (T::one() + exp(T::zero() - x))
 }
 
-fn halfway_coeff(samples: f64) -> f64 {
+fn halfway_coeff(samples: TargetF) -> TargetF {
     // This approximation is accurate to 0.5% when 1 <= response samples <= 500_000.
     let r0 = log(max(1.0, samples)) - 0.861624594696583;
     let r1 = logistic(r0);
@@ -61,7 +61,7 @@ impl<F: Real> Follow<F> {
     /// Set response time in seconds.
     pub fn set_response_time(&mut self, response_time: F) {
         self.response_time = response_time;
-        self.coeff = F::from_f64(halfway_coeff((response_time * self.sample_rate).to_f64()));
+        self.coeff = F::from_target_f(halfway_coeff((response_time * self.sample_rate).to_target_f()));
         if self.coeff_now < F::one() {
             self.coeff_now = self.coeff;
         }
@@ -81,7 +81,7 @@ impl<F: Real> Follow<F> {
 }
 
 impl<F: Real> AudioNode for Follow<F> {
-    const ID: u64 = 24;
+    const ID: TargetU = 24;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -92,7 +92,7 @@ impl<F: Real> AudioNode for Follow<F> {
         self.coeff_now = F::one();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
         self.set_response_time(self.response_time);
     }
@@ -114,14 +114,14 @@ impl<F: Real> AudioNode for Follow<F> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
             input.at(0).filter(0.0, |r| {
-                let c = 1.0 - self.coeff.to_f64();
-                let f = frequency * f64::TAU / self.sample_rate.to_f64();
-                let z1 = Complex64::from_polar(1.0, -f);
+                let c = 1.0 - self.coeff.to_target_f();
+                let f = frequency * TargetF::TAU / self.sample_rate.to_target_f();
+                let z1 = TargetComplex::from_polar(1.0, -f);
                 let pole = (1.0 - c) / (1.0 - c * z1);
                 r * pole * pole * pole
             }),
@@ -177,11 +177,11 @@ impl<F: Real> AFollow<F> {
     pub fn set_time(&mut self, attack_time: F, release_time: F) {
         self.atime = attack_time;
         self.rtime = release_time;
-        self.acoeff = F::from_f64(halfway_coeff(
-            (self.attack_time() * self.sample_rate).to_f64(),
+        self.acoeff = F::from_target_f(halfway_coeff(
+            (self.attack_time() * self.sample_rate).to_target_f(),
         ));
-        self.rcoeff = F::from_f64(halfway_coeff(
-            (self.release_time() * self.sample_rate).to_f64(),
+        self.rcoeff = F::from_target_f(halfway_coeff(
+            (self.release_time() * self.sample_rate).to_target_f(),
         ));
         if self.acoeff_now < F::one() {
             self.acoeff_now = self.acoeff;
@@ -203,7 +203,7 @@ impl<F: Real> AFollow<F> {
 }
 
 impl<F: Real> AudioNode for AFollow<F> {
-    const ID: u64 = 29;
+    const ID: TargetU = 29;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -215,7 +215,7 @@ impl<F: Real> AudioNode for AFollow<F> {
         self.rcoeff_now = F::one();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
         // Recalculate coefficients.
         self.set_time(self.atime, self.rtime);
@@ -250,16 +250,16 @@ impl<F: Real> AudioNode for AFollow<F> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         // The frequency response exists only in symmetric mode, as the asymmetric mode is nonlinear.
         if self.acoeff == self.rcoeff {
             output.set(
                 0,
                 input.at(0).filter(0.0, |r| {
-                    let c = 1.0 - self.acoeff.to_f64();
-                    let f = frequency * f64::TAU / self.sample_rate.to_f64();
-                    let z1 = Complex64::from_polar(1.0, -f);
+                    let c = 1.0 - self.acoeff.to_target_f();
+                    let f = frequency * TargetF::TAU / self.sample_rate.to_target_f();
+                    let z1 = TargetComplex::from_polar(1.0, -f);
                     let pole = (1.0 - c) / (1.0 - c * z1);
                     r * pole * pole * pole
                 }),

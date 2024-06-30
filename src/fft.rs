@@ -57,18 +57,7 @@ pub fn real_fft(input: &[f32], output: &mut [Complex32]) {
             let mut tmp: [f32; 4096] = from_fn(|i| input[i]);
             output[..2048].copy_from_slice(rfft_4096(&mut tmp));
         }
-        8192 => {
-            let mut tmp: [f32; 8192] = from_fn(|i| input[i]);
-            output[..4096].copy_from_slice(rfft_8192(&mut tmp));
-        }
-        16384 => {
-            let mut tmp: [f32; 16384] = from_fn(|i| input[i]);
-            output[..8192].copy_from_slice(rfft_16384(&mut tmp));
-        }
-        32768 => {
-            let mut tmp: [f32; 32768] = from_fn(|i| input[i]);
-            output[..16384].copy_from_slice(rfft_32768(&mut tmp));
-        }
+
         _ => panic!("Unsupported FFT length."),
     }
     output[output.len() - 1] = Complex32::new(output[0].im, 0.0);
@@ -127,18 +116,6 @@ pub fn inverse_fft(input: &[Complex32], output: &mut [Complex32]) {
         4096 => {
             let mut tmp: [Complex32; 4096] = from_fn(|i| input[i]);
             output.copy_from_slice(ifft_4096(&mut tmp));
-        }
-        8192 => {
-            let mut tmp: [Complex32; 8192] = from_fn(|i| input[i]);
-            output.copy_from_slice(ifft_8192(&mut tmp));
-        }
-        16384 => {
-            let mut tmp: [Complex32; 16384] = from_fn(|i| input[i]);
-            output.copy_from_slice(ifft_16384(&mut tmp));
-        }
-        32768 => {
-            let mut tmp: [Complex32; 32768] = from_fn(|i| input[i]);
-            output.copy_from_slice(ifft_32768(&mut tmp));
         }
         _ => panic!("Unsupported FFT length."),
     }

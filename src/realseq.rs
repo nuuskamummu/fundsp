@@ -1,5 +1,8 @@
 //! Realtime safe backend for Sequencer.
 
+use super::TargetF;
+use crate::target_width::TargetU;
+
 use super::audiounit::*;
 use super::buffer::*;
 use super::math::*;
@@ -111,7 +114,7 @@ impl AudioUnit for SequencerBackend {
         self.sequencer.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.handle_messages();
         self.sequencer.set_sample_rate(sample_rate);
     }
@@ -135,7 +138,7 @@ impl AudioUnit for SequencerBackend {
         }
     }
 
-    fn get_id(&self) -> u64 {
+    fn get_id(&self) -> TargetU {
         self.sequencer.get_id()
     }
 
@@ -144,7 +147,7 @@ impl AudioUnit for SequencerBackend {
         self.sequencer.ping(probe, hash)
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.handle_messages();
         self.sequencer.route(input, frequency)
     }

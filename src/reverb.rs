@@ -3,6 +3,7 @@
 use super::audionode::*;
 use super::combinator::*;
 use super::delay::{AllNest, Delay};
+use super::target_width::*;
 use super::math::*;
 use super::signal::*;
 use super::wave::*;
@@ -60,7 +61,7 @@ pub fn reverb_fitness(reverb: An<impl AudioNode<Inputs = U2, Outputs = U2>>) -> 
             let w = 0.5
                 + 0.5
                     * cos(
-                        (i as i64 - (response.length() as i64 >> 1)) as f32 * f32::TAU
+                        (i as TargetI - (response.length() as TargetI >> 1)) as f32 * f32::TAU
                             / response.length() as f32,
                     );
             response.set(channel, i, response.at(channel, i) * w);
@@ -162,7 +163,7 @@ pub struct Reverb<F: AudioNode<Inputs = U1, Outputs = U1>> {
 }
 
 impl<F: AudioNode<Inputs = U1, Outputs = U1>> Reverb<F> {
-    pub fn new(time: f64, diffusion: f64, filter: F) -> Self {
+    pub fn new(time: TargetF, diffusion: TargetF, filter: F) -> Self {
         let ldelays = [
             401, 421, 443, 463, 487, 503, 523, 547, 563, 587, 607, 619, 643, 661, 683, 701, 727,
             743, 761, 787, 809, 823, 839, 863, 883, 907, 929, 947, 967, 983, 1009, 1021,
@@ -178,16 +179,16 @@ impl<F: AudioNode<Inputs = U1, Outputs = U1>> Reverb<F> {
             let allpass0 = core::array::from_fn(|j| {
                 Schroeder::new(
                     coeff,
-                    Delay::new((ldelays[i + j * 8] - 1) as f64 / DEFAULT_SR),
+                    Delay::new((ldelays[i + j * 8] - 1) as TargetF / DEFAULT_SR),
                 )
             });
             let allpass1 = core::array::from_fn(|j| {
                 Schroeder::new(
                     coeff,
-                    Delay::new((rdelays[i + j * 8] - 1) as f64 / DEFAULT_SR),
+                    Delay::new((rdelays[i + j * 8] - 1) as TargetF / DEFAULT_SR),
                 )
             });
-            let delay = Delay::new(delays[7 - i] as f64 / DEFAULT_SR);
+            let delay = Delay::new(delays[7 - i] as TargetF / DEFAULT_SR);
             block.push(ReverbBlock::<F> {
                 allpass0,
                 allpass1,
@@ -202,7 +203,7 @@ impl<F: AudioNode<Inputs = U1, Outputs = U1>> Reverb<F> {
         let predelay = [245, 367, 263, 349];
 
         let pre = core::array::from_fn(|i| {
-            Schroeder::new(coeff, Delay::new((predelay[i] - 1) as f64 / DEFAULT_SR))
+            Schroeder::new(coeff, Delay::new((predelay[i] - 1) as TargetF / DEFAULT_SR))
         });
 
         Self {
@@ -215,7 +216,7 @@ impl<F: AudioNode<Inputs = U1, Outputs = U1>> Reverb<F> {
 }
 
 impl<F: AudioNode<Inputs = U1, Outputs = U1>> AudioNode for Reverb<F> {
-    const ID: u64 = 85;
+    const ID: TargetU = 85;
     type Inputs = U2;
     type Outputs = U2;
 
@@ -234,7 +235,7 @@ impl<F: AudioNode<Inputs = U1, Outputs = U1>> AudioNode for Reverb<F> {
         self.feedback = 0.0;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         for block in self.block.iter_mut() {
             for x in block.allpass0.iter_mut() {
                 x.set_sample_rate(sample_rate);
@@ -276,7 +277,7 @@ impl<F: AudioNode<Inputs = U1, Outputs = U1>> AudioNode for Reverb<F> {
         [output0, output1].into()
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Arbitrary(0.0).route(input, 2)
     }
 }

@@ -5,6 +5,7 @@
 
 use fundsp::dynamics::*;
 use fundsp::hacker::*;
+use fundsp::target_width::*;
 use funutd::*;
 
 #[test]
@@ -13,12 +14,12 @@ fn test_dynamics() {
 
     // Test ReduceBuffer.
     for _ in 0..100 {
-        let length = (rnd.u64() as usize & 0xff) + 1;
+        let length = (rnd_target_u(&mut rnd) as usize & 0xff) + 1;
         let mut buffer = ReduceBuffer::<u32, _>::new(length, Maximum::new());
         let mut vector = vec![0u32; length];
         for _ in 0..1000 {
-            let i = rnd.u64() as usize % length;
-            let value = rnd.u64() >> (rnd.u64() & 0x1f);
+            let i = rnd_target_u(&mut rnd) as usize % length;
+            let value = rnd_target_u(&mut rnd) >> (rnd_target_u(&mut rnd) & 0x1f);
             buffer.set(i, value as u32);
             vector[i] = value as u32;
             if i % 100 == 99 {
@@ -29,10 +30,10 @@ fn test_dynamics() {
 
     // Test limiter.
     for _ in 0..20 {
-        let samples = round(xerp(2.0, 200_000.0, rnd.f64())) as usize;
+        let samples = round(xerp(2.0, 200_000.0, rnd_target_f(&mut rnd))) as usize;
         let sample_rate = 48000.0;
         let mut x = limiter(samples as f32 / sample_rate, samples as f32 / sample_rate);
-        x.set_sample_rate(sample_rate as f64);
+        x.set_sample_rate(sample_rate as TargetF);
         for _ in 0..samples {
             x.filter_mono(0.0);
         }

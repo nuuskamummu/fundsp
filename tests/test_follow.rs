@@ -1,7 +1,7 @@
 //! Test the `follow` filter.
 use fundsp::hacker::*;
 use funutd::Rnd;
-
+use fundsp::target_width::*;
 #[allow(clippy::manual_range_contains)]
 #[test]
 fn test_follow() {
@@ -13,9 +13,9 @@ fn test_follow() {
         let samples = round(xerp(1.0, 500_000.0, squared(rnd.f32())));
         let sample_rate = xerp(10.0, 500_000.0, rnd.f32());
         let mut x = follow(samples / sample_rate);
-        x.set_sample_rate(sample_rate as f64);
+        x.set_sample_rate(sample_rate as TargetF);
         x.filter_mono(0.0);
-        let goal = lerp(-100.0, 100.0, rnd.f64());
+        let goal = lerp(-100.0, 100.0, rnd_target_f(&mut rnd));
         for _ in 0..samples as usize {
             x.filter_mono(goal as f32);
         }
@@ -30,9 +30,9 @@ fn test_follow() {
         let attack_samples = round(xerp(1.0, 500_000.0, squared(rnd.f32())));
         let release_samples = round(xerp(1.0, 500_000.0, squared(rnd.f32())));
         let sample_rate = xerp(10.0, 100_000.0, rnd.f32());
-        let goal = lerp(-100.0, 100.0, rnd.f64());
+        let goal = lerp(-100.0, 100.0, rnd_target_f(&mut rnd));
         let mut x = afollow(attack_samples / sample_rate, release_samples / sample_rate);
-        x.set_sample_rate(sample_rate as f64);
+        x.set_sample_rate(sample_rate as TargetF);
         x.filter_mono(0.0);
         for _ in 0..(if goal > 0.0 {
             attack_samples

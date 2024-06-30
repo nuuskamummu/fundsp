@@ -13,6 +13,7 @@ use funutd::Rnd;
 use numeric_array::*;
 extern crate alloc;
 use alloc::vec::Vec;
+use target_width::TargetU;
 
 /// Sine oscillator.
 /// - Input 0: frequency in Hz.
@@ -21,7 +22,7 @@ use alloc::vec::Vec;
 pub struct Sine {
     phase: f32,
     sample_duration: f32,
-    hash: u64,
+    hash: TargetU,
     initial_phase: Option<f32>,
 }
 
@@ -48,7 +49,7 @@ impl Sine {
 }
 
 impl AudioNode for Sine {
-    const ID: u64 = 21;
+    const ID: TargetU = 21;
     type Inputs = typenum::U1;
     type Outputs = typenum::U1;
 
@@ -59,7 +60,7 @@ impl AudioNode for Sine {
         };
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_duration = convert(1.0 / sample_rate);
     }
 
@@ -94,12 +95,12 @@ impl AudioNode for Sine {
     }
     */
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.reset();
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         super::signal::Routing::Generator(0.0).route(input, self.outputs())
     }
 }
@@ -125,7 +126,7 @@ pub struct Dsf<N: Size<f32>> {
     roughness: f32,
     harmonic_spacing: f32,
     sample_duration: f32,
-    hash: u64,
+    hash: TargetU,
     _marker: PhantomData<N>,
 }
 
@@ -159,7 +160,7 @@ impl<N: Size<f32>> Dsf<N> {
 }
 
 impl<N: Size<f32>> AudioNode for Dsf<N> {
-    const ID: u64 = 55;
+    const ID: TargetU = 55;
     type Inputs = N;
     type Outputs = typenum::U1;
 
@@ -167,7 +168,7 @@ impl<N: Size<f32>> AudioNode for Dsf<N> {
         self.phase = rnd1(self.hash) as f32;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_duration = convert(1.0 / sample_rate);
     }
 
@@ -193,12 +194,12 @@ impl<N: Size<f32>> AudioNode for Dsf<N> {
         }
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.reset();
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         super::signal::Routing::Generator(0.0).route(input, self.outputs())
     }
 }
@@ -214,9 +215,9 @@ pub struct Pluck {
     line: Vec<f32>,
     gain: f32,
     pos: usize,
-    hash: u64,
+    hash: TargetU,
     frequency: f32,
-    sample_rate: f64,
+    sample_rate: TargetF,
     initialized: bool,
 }
 
@@ -227,7 +228,7 @@ impl Pluck {
             damping: super::prelude::fir3(1.0 - high_frequency_damping).0,
             tuning: Allpole::new(1.0),
             line: Vec::new(),
-            gain: pow(gain_per_second.to_f64(), 1.0 / frequency.to_f64()) as f32,
+            gain: pow(gain_per_second.to_target_f(), 1.0 / frequency.to_target_f()) as f32,
             pos: 0,
             hash: 0,
             frequency,
@@ -240,20 +241,20 @@ impl Pluck {
         // Allpass filter delay is in epsilon ... epsilon + 1.
         let epsilon = 0.2;
         // Damping filter delay is 1 sample.
-        let total_delay = self.sample_rate / self.frequency.to_f64() - 1.0;
+        let total_delay = self.sample_rate / self.frequency.to_target_f() - 1.0;
         let loop_delay = floor(total_delay - epsilon);
         let allpass_delay = total_delay - loop_delay;
         self.tuning.reset();
         self.tuning.set_sample_rate(self.sample_rate);
         self.tuning.set_delay(allpass_delay as f32);
         self.line.resize(loop_delay as usize, 0.0);
-        let mut rnd = Rnd::from_u64(self.hash);
+        let mut rnd = rnd_from_target_u(self.hash);
         let mut mean = 0.0;
         for i in 0..self.line.len() {
             self.line[i] = rnd.f32_in(-1.0, 1.0);
-            mean += self.line[i].to_f64();
+            mean += self.line[i].to_target_f();
         }
-        mean /= self.line.len() as f64;
+        mean /= self.line.len() as TargetF;
         for x in self.line.iter_mut() {
             *x -= mean as f32;
         }
@@ -263,7 +264,7 @@ impl Pluck {
 }
 
 impl AudioNode for Pluck {
-    const ID: u64 = 58;
+    const ID: TargetU = 58;
     type Inputs = typenum::U1;
     type Outputs = typenum::U1;
 
@@ -272,7 +273,7 @@ impl AudioNode for Pluck {
         self.initialized = false;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         if self.sample_rate != sample_rate {
             self.sample_rate = sample_rate;
             self.damping.set_sample_rate(sample_rate);
@@ -296,12 +297,12 @@ impl AudioNode for Pluck {
         [output].into()
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.initialized = false;
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         super::signal::Routing::Generator(0.0).route(input, self.outputs())
     }
 
@@ -321,7 +322,7 @@ pub struct Rossler {
     y: f32,
     z: f32,
     sr: f32,
-    hash: u64,
+    hash: TargetU,
 }
 
 impl Rossler {
@@ -335,7 +336,7 @@ impl Rossler {
 }
 
 impl AudioNode for Rossler {
-    const ID: u64 = 73;
+    const ID: TargetU = 73;
     type Inputs = typenum::U1;
     type Outputs = typenum::U1;
 
@@ -345,7 +346,7 @@ impl AudioNode for Rossler {
         self.z = 1.0;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sr = convert(sample_rate);
     }
 
@@ -361,12 +362,12 @@ impl AudioNode for Rossler {
         [self.x * 0.05757].into()
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.reset();
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         super::signal::Routing::Generator(0.0).route(input, self.outputs())
     }
 }
@@ -380,7 +381,7 @@ pub struct Lorenz {
     y: f32,
     z: f32,
     sr: f32,
-    hash: u64,
+    hash: TargetU,
 }
 
 impl Lorenz {
@@ -394,7 +395,7 @@ impl Lorenz {
 }
 
 impl AudioNode for Lorenz {
-    const ID: u64 = 74;
+    const ID: TargetU = 74;
     type Inputs = typenum::U1;
     type Outputs = typenum::U1;
 
@@ -404,7 +405,7 @@ impl AudioNode for Lorenz {
         self.z = 1.0;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sr = convert(sample_rate);
     }
 
@@ -420,12 +421,12 @@ impl AudioNode for Lorenz {
         [self.x * 0.05107].into()
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.reset();
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         super::signal::Routing::Generator(0.0).route(input, self.outputs())
     }
 }

@@ -1,5 +1,8 @@
 //! Symphonia integration for reading audio files.
 
+use crate::hacker::TargetF;
+use crate::target_width::TargetU;
+
 use super::wave::*;
 use std::fs::File;
 use std::io::Cursor;
@@ -121,14 +124,14 @@ impl Wave {
                         Ok(decoded) => {
                             if wave.is_none() {
                                 let spec = *decoded.spec();
-                                wave = Some(Wave::new(spec.channels.count(), spec.rate as f64));
+                                wave = Some(Wave::new(spec.channels.count(), spec.rate as TargetF));
                             } else {
                                 // TODO: Check that audio spec hasn't changed.
                             }
 
                             if let Some(ref mut wave_output) = wave {
                                 let mut dest = AudioBuffer::<f32>::new(
-                                    decoded.capacity() as u64,
+                                    decoded.capacity() as TargetU,
                                     *decoded.spec(),
                                 );
                                 dest.render_silence(Some(decoded.frames()));

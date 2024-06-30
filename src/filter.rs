@@ -5,8 +5,8 @@ use super::math::*;
 use super::setting::*;
 use super::signal::*;
 use super::*;
+use target_width::*;
 use core::marker::PhantomData;
-use num_complex::Complex64;
 use numeric_array::typenum::*;
 use numeric_array::*;
 
@@ -23,7 +23,7 @@ impl<F: Real> BiquadCoefs<F> {
     /// Returns settings for a Butterworth lowpass filter.
     /// Cutoff is the -3 dB point of the filter in Hz.
     pub fn butter_lowpass(sample_rate: F, cutoff: F) -> Self {
-        let c = F::from_f64;
+        let c = F::from_target_f;
         let f: F = tan(cutoff * F::PI / sample_rate);
         let a0r: F = c(1.0) / (c(1.0) + F::SQRT_2 * f + f * f);
         let a1: F = (c(2.0) * f * f - c(2.0)) * a0r;
@@ -39,7 +39,7 @@ impl<F: Real> BiquadCoefs<F> {
     /// Bandwidth is the difference in Hz between -3 dB points of the filter response.
     /// The overall gain of the filter is independent of bandwidth.
     pub fn resonator(sample_rate: F, center: F, bandwidth: F) -> Self {
-        let c = F::from_f64;
+        let c = F::from_target_f;
         let r: F = exp(-F::PI * bandwidth / sample_rate);
         let a1: F = c(-2.0) * r * cos(F::TAU * center / sample_rate);
         let a2: F = r * r;
@@ -55,12 +55,12 @@ impl<F: Real> BiquadCoefs<F> {
     }
 
     /// Frequency response at frequency `omega` expressed as fraction of sampling rate.
-    pub fn response(&self, omega: f64) -> Complex64 {
-        let z1 = Complex64::from_polar(1.0, -f64::TAU * omega);
+    pub fn response(&self, omega: TargetF) -> TargetComplex {
+        let z1 = TargetComplex::from_polar(1.0, -TargetF::TAU * omega);
         let z2 = z1 * z1;
-        /// Complex64 with real component `x` and imaginary component zero.
-        fn re<T: Float>(x: T) -> Complex64 {
-            Complex64::new(x.to_f64(), 0.0)
+        /// TargetComplex with real component `x` and imaginary component zero.
+        fn re<T: Float>(x: T) -> TargetComplex {
+            TargetComplex::new(x.to_target_f(), 0.0)
         }
         (re(self.b0) + re(self.b1) * z1 + re(self.b2) * z2)
             / (re(1.0) + re(self.a1) * z1 + re(self.a2) * z2)
@@ -78,7 +78,7 @@ pub struct Biquad<F> {
     x2: F,
     y1: F,
     y2: F,
-    sample_rate: f64,
+    sample_rate: TargetF,
 }
 
 impl<F: Real> Biquad<F> {
@@ -104,7 +104,7 @@ impl<F: Real> Biquad<F> {
 }
 
 impl<F: Real> AudioNode for Biquad<F> {
-    const ID: u64 = 15;
+    const ID: TargetU = 15;
     type Inputs = typenum::U1;
     type Outputs = typenum::U1;
 
@@ -115,7 +115,7 @@ impl<F: Real> AudioNode for Biquad<F> {
         self.y2 = F::zero();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate;
     }
 
@@ -149,7 +149,7 @@ impl<F: Real> AudioNode for Biquad<F> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
@@ -181,7 +181,7 @@ impl<F: Real, N: Size<f32>> ButterLowpass<F, N> {
         let mut node = ButterLowpass {
             _marker: PhantomData,
             biquad: Biquad::new(),
-            sample_rate: F::from_f64(DEFAULT_SR),
+            sample_rate: F::from_target_f(DEFAULT_SR),
             cutoff: F::zero(),
         };
         node.biquad.reset();
@@ -196,7 +196,7 @@ impl<F: Real, N: Size<f32>> ButterLowpass<F, N> {
 }
 
 impl<F: Real, N: Size<f32>> AudioNode for ButterLowpass<F, N> {
-    const ID: u64 = 16;
+    const ID: TargetU = 16;
     type Inputs = N;
     type Outputs = typenum::U1;
 
@@ -204,7 +204,7 @@ impl<F: Real, N: Size<f32>> AudioNode for ButterLowpass<F, N> {
         self.biquad.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
         self.biquad.set_sample_rate(sample_rate);
         self.set_cutoff(self.cutoff);
@@ -227,7 +227,7 @@ impl<F: Real, N: Size<f32>> AudioNode for ButterLowpass<F, N> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
@@ -235,7 +235,7 @@ impl<F: Real, N: Size<f32>> AudioNode for ButterLowpass<F, N> {
                 r * self
                     .biquad
                     .coefs()
-                    .response(frequency / self.sample_rate.to_f64())
+                    .response(frequency / self.sample_rate.to_target_f())
             }),
         );
         output
@@ -265,7 +265,7 @@ impl<F: Real, N: Size<f32>> Resonator<F, N> {
         let mut node = Resonator {
             _marker: PhantomData,
             biquad: Biquad::new(),
-            sample_rate: F::from_f64(DEFAULT_SR),
+            sample_rate: F::from_target_f(DEFAULT_SR),
             center,
             bandwidth,
         };
@@ -282,7 +282,7 @@ impl<F: Real, N: Size<f32>> Resonator<F, N> {
 }
 
 impl<F: Real, N: Size<f32>> AudioNode for Resonator<F, N> {
-    const ID: u64 = 17;
+    const ID: TargetU = 17;
     type Inputs = N;
     type Outputs = typenum::U1;
 
@@ -290,7 +290,7 @@ impl<F: Real, N: Size<f32>> AudioNode for Resonator<F, N> {
         self.biquad.reset();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
         self.set_center_bandwidth(self.center, self.bandwidth);
     }
@@ -322,7 +322,7 @@ impl<F: Real, N: Size<f32>> AudioNode for Resonator<F, N> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
@@ -330,7 +330,7 @@ impl<F: Real, N: Size<f32>> AudioNode for Resonator<F, N> {
                 r * self
                     .biquad
                     .coefs()
-                    .response(frequency / self.sample_rate.to_f64())
+                    .response(frequency / self.sample_rate.to_target_f())
             }),
         );
         output
@@ -375,7 +375,7 @@ impl<F: Real, N: Size<f32>> Lowpole<F, N> {
 }
 
 impl<F: Real, N: Size<f32>> AudioNode for Lowpole<F, N> {
-    const ID: u64 = 18;
+    const ID: TargetU = 18;
     type Inputs = N;
     type Outputs = typenum::U1;
 
@@ -383,7 +383,7 @@ impl<F: Real, N: Size<f32>> AudioNode for Lowpole<F, N> {
         self.value = F::zero();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
         self.set_cutoff(self.cutoff);
     }
@@ -407,14 +407,14 @@ impl<F: Real, N: Size<f32>> AudioNode for Lowpole<F, N> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
             input.at(0).filter(0.0, |r| {
-                let c = self.coeff.to_f64();
-                let f = frequency * f64::TAU / self.sample_rate.to_f64();
-                let z1 = Complex64::from_polar(1.0, -f);
+                let c = self.coeff.to_target_f();
+                let f = frequency * TargetF::TAU / self.sample_rate.to_target_f();
+                let z1 = TargetComplex::from_polar(1.0, -f);
                 r * ((1.0 - c) / (1.0 - c * z1))
             }),
         );
@@ -455,7 +455,7 @@ impl<F: Real> DCBlock<F> {
 }
 
 impl<F: Real> AudioNode for DCBlock<F> {
-    const ID: u64 = 22;
+    const ID: TargetU = 22;
     type Inputs = typenum::U1;
     type Outputs = typenum::U1;
 
@@ -464,7 +464,7 @@ impl<F: Real> AudioNode for DCBlock<F> {
         self.y1 = F::zero();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
         self.set_cutoff(self.cutoff);
     }
@@ -484,14 +484,14 @@ impl<F: Real> AudioNode for DCBlock<F> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
             input.at(0).filter(0.0, |r| {
-                let c = self.coeff.to_f64();
-                let f = frequency * f64::TAU / self.sample_rate.to_f64();
-                let z1 = Complex64::from_polar(1.0, -f);
+                let c = self.coeff.to_target_f();
+                let f = frequency * TargetF::TAU / self.sample_rate.to_target_f();
+                let z1 = TargetComplex::from_polar(1.0, -f);
                 r * ((1.0 - z1) / (1.0 - c * z1))
             }),
         );
@@ -526,7 +526,7 @@ impl<F: Float> Pinkpass<F> {
 }
 
 impl<F: Float> AudioNode for Pinkpass<F> {
-    const ID: u64 = 26;
+    const ID: TargetU = 26;
     type Inputs = U1;
     type Outputs = U1;
 
@@ -540,19 +540,19 @@ impl<F: Float> AudioNode for Pinkpass<F> {
         self.b6 = F::zero();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
     }
 
     #[inline]
     fn tick(&mut self, input: &Frame<f32, Self::Inputs>) -> Frame<f32, Self::Outputs> {
         let x: F = convert(input[0]);
-        self.b0 = F::from_f64(0.99886) * self.b0 + x * F::from_f64(0.0555179);
-        self.b1 = F::from_f64(0.99332) * self.b1 + x * F::from_f64(0.0750759);
-        self.b2 = F::from_f64(0.96900) * self.b2 + x * F::from_f64(0.1538520);
-        self.b3 = F::from_f64(0.86650) * self.b3 + x * F::from_f64(0.3104856);
-        self.b4 = F::from_f64(0.55000) * self.b4 + x * F::from_f64(0.5329522);
-        self.b5 = F::from_f64(-0.7616) * self.b5 - x * F::from_f64(0.0168980);
+        self.b0 = F::from_target_f(0.99886) * self.b0 + x * F::from_target_f(0.0555179);
+        self.b1 = F::from_target_f(0.99332) * self.b1 + x * F::from_target_f(0.0750759);
+        self.b2 = F::from_target_f(0.96900) * self.b2 + x * F::from_target_f(0.1538520);
+        self.b3 = F::from_target_f(0.86650) * self.b3 + x * F::from_target_f(0.3104856);
+        self.b4 = F::from_target_f(0.55000) * self.b4 + x * F::from_target_f(0.5329522);
+        self.b5 = F::from_target_f(-0.7616) * self.b5 - x * F::from_target_f(0.0168980);
         let out = (self.b0
             + self.b1
             + self.b2
@@ -560,19 +560,19 @@ impl<F: Float> AudioNode for Pinkpass<F> {
             + self.b4
             + self.b5
             + self.b6
-            + x * F::from_f64(0.5362))
-            * F::from_f64(0.115830421);
-        self.b6 = x * F::from_f64(0.115926);
+            + x * F::from_target_f(0.5362))
+            * F::from_target_f(0.115830421);
+        self.b6 = x * F::from_target_f(0.115926);
         [convert(out)].into()
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
             input.at(0).filter(0.0, |r| {
-                let f = frequency * f64::TAU / self.sample_rate.to_f64();
-                let z1 = Complex64::from_polar(1.0, -f);
+                let f = frequency * TargetF::TAU / self.sample_rate.to_target_f();
+                let z1 = TargetComplex::from_polar(1.0, -f);
                 let pole0 = 0.0555179 / (1.0 - 0.99886 * z1);
                 let pole1 = 0.0750759 / (1.0 - 0.99332 * z1);
                 let pole2 = 0.1538520 / (1.0 - 0.96900 * z1);
@@ -625,7 +625,7 @@ impl<F: Float, N: Size<f32>> Allpole<F, N> {
 }
 
 impl<F: Float, N: Size<f32>> AudioNode for Allpole<F, N> {
-    const ID: u64 = 46;
+    const ID: TargetU = 46;
     type Inputs = N;
     type Outputs = typenum::U1;
 
@@ -634,7 +634,7 @@ impl<F: Float, N: Size<f32>> AudioNode for Allpole<F, N> {
         self.y1 = F::zero();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
     }
 
@@ -656,14 +656,14 @@ impl<F: Float, N: Size<f32>> AudioNode for Allpole<F, N> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
             input.at(0).filter(0.0, |r| {
-                let eta = self.eta.to_f64();
+                let eta = self.eta.to_target_f();
                 let z1 =
-                    Complex64::from_polar(1.0, -frequency * f64::TAU / self.sample_rate.to_f64());
+                    TargetComplex::from_polar(1.0, -frequency * TargetF::TAU / self.sample_rate.to_target_f());
                 r * (eta + z1) / (1.0 + eta * z1)
             }),
         );
@@ -708,7 +708,7 @@ impl<F: Real, N: Size<f32>> Highpole<F, N> {
 }
 
 impl<F: Real, N: Size<f32>> AudioNode for Highpole<F, N> {
-    const ID: u64 = 47;
+    const ID: TargetU = 47;
     type Inputs = N;
     type Outputs = typenum::U1;
 
@@ -717,7 +717,7 @@ impl<F: Real, N: Size<f32>> AudioNode for Highpole<F, N> {
         self.y1 = F::zero();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = convert(sample_rate);
         self.set_cutoff(self.cutoff);
     }
@@ -743,14 +743,14 @@ impl<F: Real, N: Size<f32>> AudioNode for Highpole<F, N> {
         }
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         let mut output = SignalFrame::new(self.outputs());
         output.set(
             0,
             input.at(0).filter(0.0, |r| {
-                let c = self.coeff.to_f64();
-                let f = frequency * f64::TAU / self.sample_rate.to_f64();
-                let z1 = Complex64::from_polar(1.0, -f);
+                let c = self.coeff.to_target_f();
+                let f = frequency * TargetF::TAU / self.sample_rate.to_target_f();
+                let z1 = TargetComplex::from_polar(1.0, -f);
                 r * (c * (1.0 - z1) / (1.0 - c * z1))
             }),
         );

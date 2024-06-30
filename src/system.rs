@@ -6,6 +6,7 @@ use super::combinator::*;
 use super::math::*;
 use super::setting::*;
 use super::signal::*;
+use super::target_width::*;
 use super::*;
 
 /// A dynamical system is a node that has an attached update function
@@ -40,7 +41,7 @@ impl<X: AudioNode, F: FnMut(f32, f32, &mut X) + Clone + Send + Sync> System<X, F
 }
 
 impl<X: AudioNode, F: FnMut(f32, f32, &mut X) + Clone + Sync + Send> AudioNode for System<X, F> {
-    const ID: u64 = 67;
+    const ID: TargetU = 67;
     type Inputs = X::Inputs;
     type Outputs = X::Outputs;
 
@@ -50,7 +51,7 @@ impl<X: AudioNode, F: FnMut(f32, f32, &mut X) + Clone + Sync + Send> AudioNode f
         self.delta_time = 0.0;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.x.set_sample_rate(sample_rate);
         self.sample_rate = convert(sample_rate);
     }
@@ -88,7 +89,7 @@ impl<X: AudioNode, F: FnMut(f32, f32, &mut X) + Clone + Sync + Send> AudioNode f
         self.x.ping(probe, hash.hash(Self::ID))
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.x.route(input, frequency)
     }
 

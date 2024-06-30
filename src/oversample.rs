@@ -5,6 +5,7 @@ use super::math::*;
 use super::signal::*;
 use super::*;
 use numeric_array::typenum::*;
+use target_width::TargetU;
 
 // Coefficients from https://fiiir.com/, a linear phase Kaiser windowed filter with
 // normalized frequency cutoff 0.22, transition band 0.06 and 80 dB stopband attenuation.
@@ -205,7 +206,7 @@ where
     X::Outputs: Size<Frame<f32, U128>>,
 {
     /// Create new oversampler. 2x oversamples enclosed node.
-    pub fn new(sample_rate: f64, mut node: X) -> Self {
+    pub fn new(sample_rate: TargetF, mut node: X) -> Self {
         let inner_sr = sample_rate * 2.0;
         node.set_sample_rate(inner_sr);
         let hash = node.ping(true, AttoHash::new(Self::ID));
@@ -237,7 +238,7 @@ where
     X::Inputs: Size<Frame<f32, U128>>,
     X::Outputs: Size<Frame<f32, U128>>,
 {
-    const ID: u64 = 51;
+    const ID: TargetU = 51;
     type Inputs = X::Inputs;
     type Outputs = X::Outputs;
 
@@ -247,7 +248,7 @@ where
         self.outv = Frame::default();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         let inner_sr = sample_rate * 2.0;
         self.x.set_sample_rate(inner_sr);
     }
@@ -279,7 +280,7 @@ where
         output
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.x.route(input, frequency)
     }
 

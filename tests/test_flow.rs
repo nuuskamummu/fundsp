@@ -13,6 +13,7 @@
 
 use fundsp::fft::*;
 use fundsp::hacker32::*;
+use fundsp::target_width::*;
 use num_complex::Complex32;
 
 fn is_equal_response(x: Complex32, y: Complex32) -> bool {
@@ -54,8 +55,8 @@ where
 
     let mut f = 10.0;
     while f <= 22_000.0 {
-        let i = round(f * length as f64 / sample_rate) as usize;
-        let f_i = i as f64 / length as f64 * sample_rate;
+        let i = round(f * length as TargetF / sample_rate) as usize;
+        let f_i = i as TargetF / length as TargetF * sample_rate;
         let reported = filter.response(0, f_i).unwrap();
         let reported = Complex32::new(reported.re as f32, reported.im as f32);
         let response = buffer[i];
@@ -261,7 +262,7 @@ fn test_allpass() {
     let impulse = Wave::render(DEFAULT_SR, 1.0 / DEFAULT_SR, &mut (impulse::<U1>()));
 
     for mut node in allpasses {
-        let response = impulse.filter(length as f64 / DEFAULT_SR, &mut *node);
+        let response = impulse.filter(length as TargetF / DEFAULT_SR, &mut *node);
         real_fft(response.channel(0), &mut spectrum);
         // This tolerance has been tuned to a minimum value that allows the tests to pass.
         let tolerance = 1.0e-5;

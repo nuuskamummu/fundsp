@@ -13,11 +13,12 @@ extern crate alloc;
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
+use target_width::TargetU;
 
 #[derive(Clone)]
 struct Voice {
     /// Starting time of the next grain in this voice.
-    pub next_time: f64,
+    pub next_time: TargetF,
 }
 
 /// Granular synthesizer. The synthesizer works by tracing paths in 3-D space and using
@@ -25,7 +26,7 @@ struct Voice {
 /// a helix (corkscrew) shape.
 #[derive(Clone)]
 pub struct Granular<
-    X: Fn(f64, f32, f32, f32, f32, f32) -> (f32, f32, Box<dyn AudioUnit>) + Sync + Send + Clone,
+    X: Fn(TargetF, f32, f32, f32, f32, f32) -> (f32, f32, Box<dyn AudioUnit>) + Sync + Send + Clone,
 > {
     voices: Vec<Voice>,
     outputs: usize,
@@ -38,14 +39,14 @@ pub struct Granular<
     outer_radius: f32,
     generator: X,
     sequencer: Sequencer,
-    sample_rate: f64,
-    time: f64,
-    rnd_seed: u64,
+    sample_rate: TargetF,
+    time: TargetF,
+    rnd_seed: TargetU,
     rnd: Rnd,
 }
 
 impl<
-        X: Fn(f64, f32, f32, f32, f32, f32) -> (f32, f32, Box<dyn AudioUnit>) + Sync + Send + Clone,
+        X: Fn(TargetF, f32, f32, f32, f32, f32) -> (f32, f32, Box<dyn AudioUnit>) + Sync + Send + Clone,
     > Granular<X>
 {
     /// Create a new granular synthesizer.
@@ -63,20 +64,20 @@ impl<
     /// `v` is a voice indicator and `x`, `y` and `z` are values obtained from our texture.
     /// The generator function returns the triple (grain length, envelope length, grain graph).
     /// Lengths are in seconds.
-    /// For example, `|t, b, v, x, y, z| (0.06, 0.03, Box::new(sine_hz(xerp11(20.0, 4000.0, x)) * xerp11(0.0002, 0.02, y) >> pan(v * 0.5)))`.
+    /// For example, `|t: TargetF, b, v, x, y, z| (0.06, 0.03, Box::new(sine_hz(xerp11(20.0, 4000.0, x)) * xerp11(0.0002, 0.02, y) >> pan(v * 0.5)))`.
     pub fn new(
         outputs: usize,
         voices: usize,
         beat_length: f32,
         beats_per_cycle: usize,
-        texture_seed: u64,
+        texture_seed: TargetU,
         inner_radius: f32,
         outer_radius: f32,
         jitter: f32,
         generator: X,
     ) -> Self {
         let voice_vector = vec![Voice { next_time: 0.0 }; voices];
-        let mut dna = Dna::new(texture_seed);
+        let mut dna = Dna::new(texture_seed as u64);
         let texture = funutd::map3gen::genmap3(100.0, TilingMode::Z, &mut dna);
         let mut granular = Self {
             voices: voice_vector,
@@ -93,21 +94,21 @@ impl<
             sample_rate: DEFAULT_SR,
             time: 0.0,
             rnd_seed: texture_seed,
-            rnd: Rnd::from_u64(texture_seed),
+            rnd: rnd_from_target_u(texture_seed),
         };
         granular.reset();
         granular
     }
 
     /// Position in space at the given time for the given voice.
-    fn helix_position(&mut self, voice: usize, time: f64) -> Vec3a {
-        let cycle_length = self.beat_length as f64 * self.beats_per_cycle as f64;
-        let cycle = (time / cycle_length).floor();
-        let cycle_start = cycle * cycle_length;
-        let z_depth = 1.0;
-        let cycle_d = (time - cycle_start) / cycle_length;
-        let z = cycle_d * z_depth;
-        let beat = cycle_d * self.beats_per_cycle as f64;
+    fn helix_position(&mut self, voice: usize, time: TargetF) -> Vec3a {
+        let cycle_length:TargetF = self.beat_length as TargetF * self.beats_per_cycle as TargetF;
+        let cycle: TargetF = (time / cycle_length).floor();
+        let cycle_start: TargetF = cycle * cycle_length;
+        let z_depth: TargetF = 1.0;
+        let cycle_d: TargetF = (time - cycle_start) / cycle_length;
+        let z: TargetF = cycle_d * z_depth;
+        let beat: TargetF = cycle_d * self.beats_per_cycle as TargetF;
         let voice_d = if self.voices.len() == 1 {
             0.5
         } else {
@@ -126,17 +127,17 @@ impl<
 
     /// Instantiate a grain.
     fn instantiate(&mut self, voice: usize) {
-        let t = self.voices[voice].next_time;
+        let t: TargetF = self.voices[voice].next_time;
         let position = self.helix_position(voice, t);
         let v = self.texture.at(position);
-        let voice_d = if self.voices.len() == 1 {
+        let voice_d: TargetF = if self.voices.len() == 1 {
             0.5
         } else {
-            voice as f64 / (self.voices.len() - 1) as f64
+            voice as TargetF / (self.voices.len() - 1) as TargetF
         };
         let (grain_length, envelope_length, mut grain) = (self.generator)(
             t,
-            (t / self.beat_length as f64) as f32,
+            (t / self.beat_length as TargetF) as f32,
             (voice_d * 2.0 - 1.0) as f32,
             v.x.clamp(-1.0, 1.0),
             v.y.clamp(-1.0, 1.0),
@@ -148,26 +149,26 @@ impl<
             assert_eq!(voice, 0);
             // Offset voice start times based on the first grain.
             for i in 1..self.voices.len() {
-                self.voices[i].next_time = (grain_length as f64 - envelope_length as f64)
-                    * i as f64
-                    / self.voices.len() as f64;
+                self.voices[i].next_time = (grain_length as TargetF - envelope_length as TargetF)
+                    * i as TargetF
+                    / self.voices.len() as TargetF;
             }
         }
-        self.voices[voice].next_time = t + grain_length as f64 - envelope_length as f64;
+        self.voices[voice].next_time = t + grain_length as TargetF - envelope_length as TargetF;
         // Use a random phase for each individual grain.
-        grain.ping(false, AttoHash::new(self.rnd.u64()));
+        grain.ping(false, AttoHash::new(rnd_target_u(&mut self.rnd)));
         self.sequencer.push_duration(
             t,
-            grain_length as f64,
+            grain_length as TargetF,
             Fade::Power,
-            envelope_length as f64,
-            envelope_length as f64,
+            envelope_length as TargetF,
+            envelope_length as TargetF,
             grain,
         );
     }
 
     /// Check all voices and instantiate grains that start before the given time.
-    fn instantiate_voices(&mut self, before_time: f64) {
+    fn instantiate_voices(&mut self, before_time: TargetF) {
         for voice in 0..self.voices.len() {
             while self.voices[voice].next_time < before_time {
                 self.instantiate(voice);
@@ -177,7 +178,7 @@ impl<
 }
 
 impl<
-        X: Fn(f64, f32, f32, f32, f32, f32) -> (f32, f32, Box<dyn AudioUnit>) + Sync + Send + Clone,
+        X: Fn(TargetF, f32, f32, f32, f32, f32) -> (f32, f32, Box<dyn AudioUnit>) + Sync + Send + Clone,
     > AudioUnit for Granular<X>
 {
     fn reset(&mut self) {
@@ -186,10 +187,10 @@ impl<
             self.voices[i].next_time = 0.0;
         }
         self.time = 0.0;
-        self.rnd = Rnd::from_u64(self.rnd_seed);
+        self.rnd = rnd_from_target_u(self.rnd_seed);
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate;
         self.sequencer.set_sample_rate(sample_rate);
     }
@@ -201,19 +202,19 @@ impl<
     }
 
     fn process(&mut self, size: usize, input: &BufferRef, output: &mut BufferMut) {
-        self.time += size as f64 / self.sample_rate;
+        self.time += size as TargetF / self.sample_rate;
         self.instantiate_voices(self.time);
         self.sequencer.process(size, input, output);
     }
 
-    fn get_id(&self) -> u64 {
-        const ID: u64 = 72;
+    fn get_id(&self) -> TargetU {
+        const ID: TargetU = 72;
         ID
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.rnd_seed = hash;
-        self.rnd = Rnd::from_u64(self.rnd_seed);
+        self.rnd = rnd_from_target_u(self.rnd_seed);
     }
 
     fn inputs(&self) -> usize {
@@ -224,7 +225,7 @@ impl<
         self.outputs
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.sequencer.route(input, frequency)
     }
 

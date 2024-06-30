@@ -1,7 +1,8 @@
 //! Signal flow analysis components.
 
+use crate::hacker::TargetF;
+
 use super::math::*;
-use num_complex::Complex64;
 extern crate alloc;
 use tinyvec::TinyVec;
 
@@ -12,18 +13,18 @@ pub enum Signal {
     #[default]
     Unknown,
     /// Constant signal with value.
-    Value(f64),
+    Value(TargetF),
     /// Signal that is connected to inputs or generators with latency in samples.
-    Latency(f64),
+    Latency(TargetF),
     /// Signal that is connected to inputs or generators
     /// with complex frequency response and latency in samples.
-    Response(Complex64, f64),
+    Response(TargetComplex, TargetF),
 }
 
 impl Signal {
     /// Filter signal using the frequency response function `filter`
     /// while adding extra `latency`. Latency is measured in samples.
-    pub fn filter(&self, latency: f64, filter: impl Fn(Complex64) -> Complex64) -> Signal {
+    pub fn filter(&self, latency: TargetF, filter: impl Fn(TargetComplex) -> TargetComplex) -> Signal {
         match self {
             Signal::Latency(l) => Signal::Latency(l + latency),
             Signal::Response(response, l) => Signal::Response(filter(*response), l + latency),
@@ -34,7 +35,7 @@ impl Signal {
     /// Apply nonlinear processing to signal with extra `latency` in samples.
     /// Nonlinear processing erases constant values and frequency responses but maintains latency.
     /// Latency is measured in samples.
-    pub fn distort(&self, latency: f64) -> Signal {
+    pub fn distort(&self, latency: TargetF) -> Signal {
         match self {
             Signal::Latency(l) => Signal::Latency(l + latency),
             Signal::Response(_, l) => Signal::Latency(l + latency),
@@ -43,7 +44,7 @@ impl Signal {
     }
 
     /// Delay signal by `latency` samples.
-    pub fn delay(&self, latency: f64) -> Signal {
+    pub fn delay(&self, latency: TargetF) -> Signal {
         match self {
             Signal::Latency(l) => Signal::Latency(l + latency),
             Signal::Response(response, l) => Signal::Response(*response, l + latency),
@@ -52,7 +53,7 @@ impl Signal {
     }
 
     /// Scale signal by `factor`.
-    pub fn scale(&self, factor: f64) -> Signal {
+    pub fn scale(&self, factor: TargetF) -> Signal {
         match self {
             Signal::Value(x) => Signal::Value(x * factor),
             Signal::Response(response, latency) => Signal::Response(response * factor, *latency),
@@ -63,7 +64,7 @@ impl Signal {
     /// Combine signals nonlinearly with extra `latency`.
     /// Nonlinear processing erases constant values and frequency responses but maintains latency.
     /// Latency is measured in samples.
-    pub fn combine_nonlinear(&self, other: Signal, latency: f64) -> Signal {
+    pub fn combine_nonlinear(&self, other: Signal, latency: TargetF) -> Signal {
         match (self.distort(0.0), other.distort(0.0)) {
             (Signal::Latency(lx), Signal::Latency(ly)) => Signal::Latency(min(lx, ly) + latency),
             (Signal::Latency(lx), _) => Signal::Latency(lx + latency),
@@ -78,9 +79,9 @@ impl Signal {
     pub fn combine_linear(
         &self,
         other: Signal,
-        latency: f64,
-        value: impl Fn(f64, f64) -> f64,
-        response: impl Fn(Complex64, Complex64) -> Complex64,
+        latency: TargetF,
+        value: impl Fn(TargetF, TargetF) -> TargetF,
+        response: impl Fn(TargetComplex, TargetComplex) -> TargetComplex,
     ) -> Signal {
         match (*self, other) {
             (Signal::Value(vx), Signal::Value(vy)) => Signal::Value(value(vx, vy)),
@@ -89,10 +90,10 @@ impl Signal {
                 Signal::Response(response(rx, ry), min(lx, ly) + latency)
             }
             (Signal::Response(rx, lx), Signal::Value(_)) => {
-                Signal::Response(response(rx, Complex64::new(0.0, 0.0)), lx + latency)
+                Signal::Response(response(rx, TargetComplex::new(0.0, 0.0)), lx + latency)
             }
             (Signal::Value(_), Signal::Response(ry, ly)) => {
-                Signal::Response(response(Complex64::new(0.0, 0.0), ry), ly + latency)
+                Signal::Response(response(TargetComplex::new(0.0, 0.0), ry), ly + latency)
             }
             (Signal::Response(_, lx), Signal::Latency(ly)) => {
                 Signal::Latency(min(lx, ly) + latency)
@@ -161,7 +162,7 @@ impl SignalFrame {
 #[derive(Clone)]
 pub enum Routing {
     /// Conservative routing: every input influences every output nonlinearly with extra latency in samples.
-    Arbitrary(f64),
+    Arbitrary(TargetF),
     /// Split or multisplit semantics.
     Split,
     /// Join or multijoin semantics.
@@ -169,7 +170,7 @@ pub enum Routing {
     /// Reverse channel order semantics. Equal number of inputs and outputs.
     Reverse,
     /// Generator with latency in samples.
-    Generator(f64),
+    Generator(TargetF),
 }
 
 impl Routing {
@@ -206,7 +207,7 @@ impl Routing {
                         );
                     }
                     // Normalize. This is done to make join an inverse of split.
-                    output.set(i, combo.scale(output.len() as f64 / input.len() as f64));
+                    output.set(i, combo.scale(output.len() as TargetF / input.len() as TargetF));
                 }
             }
             Routing::Reverse => {

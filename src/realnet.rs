@@ -1,11 +1,14 @@
 //! Real-time friendly backend for Net.
 
+use crate::target_width::TargetU;
+
 use super::audiounit::*;
 use super::buffer::*;
 use super::math::*;
 use super::net::*;
 use super::setting::*;
 use super::signal::*;
+use super::target_width::*;
 use thingbuf::mpsc::{channel, Receiver, Sender};
 
 #[derive(Default, Clone)]
@@ -95,7 +98,7 @@ impl AudioUnit for NetBackend {
         self.handle_messages();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.net.set_sample_rate(sample_rate);
         self.handle_messages();
     }
@@ -110,7 +113,7 @@ impl AudioUnit for NetBackend {
         self.net.process(size, input, output);
     }
 
-    fn get_id(&self) -> u64 {
+    fn get_id(&self) -> TargetU {
         self.net.get_id()
     }
 
@@ -119,7 +122,7 @@ impl AudioUnit for NetBackend {
         self.net.ping(probe, hash)
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.handle_messages();
         self.net.route(input, frequency)
     }

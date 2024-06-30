@@ -6,6 +6,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
 use fundsp::hacker::*;
 use funutd::*;
+use fundsp::target_width::*;
 
 #[cfg(debug_assertions)] // required when disable_release is set (default)
 #[global_allocator]
@@ -29,9 +30,9 @@ fn main() {
 
 fn run<T>(device: &cpal::Device, config: &cpal::StreamConfig) -> Result<(), anyhow::Error>
 where
-    T: SizedSample + FromSample<f64>,
+    T: SizedSample + FromSample<TargetF>,
 {
-    let sample_rate = config.sample_rate.0 as f64;
+    let sample_rate = config.sample_rate.0 as TargetF;
     let channels = config.channels as usize;
 
     let mut net = Net::new(0, 2);
@@ -57,7 +58,7 @@ where
     )?;
     stream.play()?;
 
-    let mut rnd = Rnd::from_u64(1);
+    let mut rnd = rnd_from_target_u(1);
     let mut delay_added = false;
     let mut filter_added = false;
 
@@ -89,12 +90,12 @@ where
 
 fn write_data<T>(output: &mut [T], channels: usize, next_sample: &mut dyn FnMut() -> (f32, f32))
 where
-    T: SizedSample + FromSample<f64>,
+    T: SizedSample + FromSample<TargetF>,
 {
     for frame in output.chunks_mut(channels) {
         let sample = next_sample();
-        let left = T::from_sample(sample.0 as f64);
-        let right: T = T::from_sample(sample.1 as f64);
+        let left = T::from_sample(sample.0 as TargetF);
+        let right: T = T::from_sample(sample.1 as TargetF);
 
         for (channel, sample) in frame.iter_mut().enumerate() {
             if channel & 1 == 0 {

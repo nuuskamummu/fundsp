@@ -327,7 +327,7 @@ pub fn reverse<N: Size<f32>>() -> An<Reverse<N>> {
 /// ### Example: Vibrato
 /// ```
 /// use fundsp::hacker32::*;
-/// lfo(|t| 110.0 + lerp11(-2.0, 2.0, sin_hz(t, 5.0))) >> sine();
+/// lfo(|t: TargetF| 110.0 + lerp11(-2.0, 2.0, sin_hz(t, 5.0))) >> sine();
 /// ```
 pub fn sine() -> An<Sine> {
     An(Sine::new())
@@ -352,7 +352,7 @@ pub fn sine_hz(f: f32) -> An<Pipe<Constant<U1>, Sine>> {
 /// ### Example
 /// ```
 /// use fundsp::hacker32::*;
-/// lfo(|t| 440.0 + 10.0 * sin_hz(6.0, t)) >> rossler();
+/// lfo(|t: TargetF| 440.0 + 10.0 * sin_hz(6.0, t)) >> rossler();
 /// ```
 pub fn rossler() -> An<Rossler> {
     An(Rossler::new())
@@ -365,7 +365,7 @@ pub fn rossler() -> An<Rossler> {
 /// ### Example
 /// ```
 /// use fundsp::hacker32::*;
-/// lfo(|t| 110.0 + 5.0 * sin_hz(5.0, t)) >> lorenz();
+/// lfo(|t: TargetF| 110.0 + 5.0 * sin_hz(5.0, t)) >> lorenz();
 /// ```
 pub fn lorenz() -> An<Lorenz> {
     An(Lorenz::new())
@@ -557,7 +557,7 @@ pub fn moog_hz(frequency: f32, q: f32) -> An<Moog<f32, U1>> {
 /// ### Example: Mixing Pink And Brown Noise
 /// ```
 /// use fundsp::hacker32::*;
-/// envelope(|t| (sin_hz(1.0, t), cos_hz(1.0, t))) * (pink() | brown()) >> join();
+/// envelope(|t: TargetF| (sin_hz(1.0, t), cos_hz(1.0, t))) * (pink() | brown()) >> join();
 /// ```
 pub fn envelope<E, R>(f: E) -> An<Envelope<f32, E, R>>
 where
@@ -580,7 +580,7 @@ where
 /// ### Example: Exponentially Decaying White Noise
 /// ```
 /// use fundsp::hacker32::*;
-/// lfo(|t: f32| exp(-t)) * white();
+/// lfo(|t: TargetF: f32| exp(-t)) * white();
 /// ```
 pub fn lfo<E, R>(f: E) -> An<Envelope<f32, E, R>>
 where
@@ -601,7 +601,7 @@ where
 /// ```
 /// use fundsp::hacker32::*;
 /// let speed = shared(1.0);
-/// var(&speed) >> envelope2(|t: f32, speed: f32| exp(-t * speed));
+/// var(&speed) >> envelope2(|t: TargetF: f32, speed: f32| exp(-t * speed));
 /// ```
 pub fn envelope2<E, R>(
     mut f: E,
@@ -672,7 +672,7 @@ where
 /// use fundsp::hacker32::*;
 /// let min = shared(-1.0);
 /// let max = shared(1.0);
-/// (var(&min) | var(&max)) >> lfo3(|t, min, max| clamp(min, max, sin_hz(110.0, t)));
+/// (var(&min) | var(&max)) >> lfo3(|t: TargetF, min, max| clamp(min, max, sin_hz(110.0, t)));
 /// max.set(0.5);
 /// ```
 pub fn lfo3<E, R>(
@@ -750,7 +750,7 @@ pub fn adsr_live(
 /// use fundsp::hacker32::*;
 /// mls_bits(31);
 /// ```
-pub fn mls_bits(n: u64) -> An<Mls> {
+pub fn mls_bits(n: TargetU) -> An<Mls> {
     An(Mls::new(MlsState::new(n as u32)))
 }
 
@@ -872,7 +872,7 @@ pub fn multitick<N: Size<f32>>() -> An<Tick<N>> {
 /// delay(1.0);
 /// ```
 pub fn delay(t: f32) -> An<Delay> {
-    An(Delay::new(t as f64))
+    An(Delay::new(t as TargetF))
 }
 
 /// Tapped delay line with cubic interpolation.
@@ -885,7 +885,7 @@ pub fn delay(t: f32) -> An<Delay> {
 /// ### Example: Variable Delay
 /// ```
 /// use fundsp::hacker32::*;
-/// pass() & (pass() | lfo(|t| lerp11(0.01, 0.1, spline_noise(0, t)))) >> tap(0.01, 0.1);
+/// pass() & (pass() | lfo(|t: TargetF| lerp11(0.01, 0.1, spline_noise(0, t)))) >> tap(0.01, 0.1);
 /// ```
 pub fn tap(min_delay: f32, max_delay: f32) -> An<Tap<U1>> {
     An(Tap::new(min_delay, max_delay))
@@ -902,7 +902,7 @@ pub fn tap(min_delay: f32, max_delay: f32) -> An<Tap<U1>> {
 /// ### Example: Dual Variable Delay
 /// ```
 /// use fundsp::hacker32::*;
-/// (pass() | lfo(|t| (lerp11(0.01, 0.1, spline_noise(0, t)), lerp11(0.1, 0.2, spline_noise(1, t))))) >> multitap::<U2>(0.01, 0.2);
+/// (pass() | lfo(|t: TargetF| (lerp11(0.01, 0.1, spline_noise(0, t)), lerp11(0.1, 0.2, spline_noise(1, t))))) >> multitap::<U2>(0.01, 0.2);
 /// ```
 pub fn multitap<N>(min_delay: f32, max_delay: f32) -> An<Tap<N>>
 where
@@ -922,7 +922,7 @@ where
 /// ### Example: Variable Delay
 /// ```
 /// use fundsp::hacker32::*;
-/// pass() & (pass() | lfo(|t| lerp11(0.01, 0.1, spline_noise(0, t)))) >> tap_linear(0.01, 0.1);
+/// pass() & (pass() | lfo(|t: TargetF| lerp11(0.01, 0.1, spline_noise(0, t)))) >> tap_linear(0.01, 0.1);
 /// ```
 pub fn tap_linear(min_delay: f32, max_delay: f32) -> An<TapLinear<U1>> {
     An(TapLinear::new(min_delay, max_delay))
@@ -939,7 +939,7 @@ pub fn tap_linear(min_delay: f32, max_delay: f32) -> An<TapLinear<U1>> {
 /// ### Example: Dual Variable Delay
 /// ```
 /// use fundsp::hacker32::*;
-/// (pass() | lfo(|t| (lerp11(0.01, 0.1, spline_noise(0, t)), lerp11(0.1, 0.2, spline_noise(1, t))))) >> multitap_linear::<U2>(0.01, 0.2);
+/// (pass() | lfo(|t: TargetF| (lerp11(0.01, 0.1, spline_noise(0, t)), lerp11(0.1, 0.2, spline_noise(1, t))))) >> multitap_linear::<U2>(0.01, 0.2);
 /// ```
 pub fn multitap_linear<N>(min_delay: f32, max_delay: f32) -> An<TapLinear<N>>
 where
@@ -978,7 +978,7 @@ where
 /// ### Example: Resampled Pink Noise
 /// ```
 /// use fundsp::hacker32::*;
-/// lfo(|t| xerp11(0.5, 2.0, spline_noise(1, t))) >> resample(pink());
+/// lfo(|t: TargetF| xerp11(0.5, 2.0, spline_noise(1, t))) >> resample(pink());
 /// ```
 pub fn resample<X>(node: An<X>) -> An<Resampler<X>>
 where
@@ -1340,7 +1340,7 @@ where
     X: AudioNode,
     X::Inputs: Size<f32>,
     X::Outputs: Size<f32>,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::busi(f)
 }
@@ -1353,7 +1353,7 @@ where
 /// ### Example (Noise Bundle)
 /// ```
 /// use fundsp::hacker32::*;
-/// busf::<U20, _, _>(|t| (noise() | dc((xerp(100.0, 1000.0, t), 20.0))) >> !resonator() >> resonator());
+/// busf::<U20, _, _>(|t: TargetF| (noise() | dc((xerp(100.0, 1000.0, t), 20.0))) >> !resonator() >> resonator());
 /// ```
 pub fn busf<N, X, Y>(f: Y) -> An<MultiBus<N, X>>
 where
@@ -1395,7 +1395,7 @@ where
     X::Outputs: Size<f32> + Mul<N>,
     <X::Inputs as Mul<N>>::Output: Size<f32>,
     <X::Outputs as Mul<N>>::Output: Size<f32>,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::stacki(f)
 }
@@ -1443,7 +1443,7 @@ where
     X::Inputs: Size<f32>,
     X::Outputs: Size<f32> + Mul<N>,
     <X::Outputs as Mul<N>>::Output: Size<f32>,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::branchi(f)
 }
@@ -1512,7 +1512,7 @@ where
     X::Inputs: Size<f32> + Mul<N>,
     X::Outputs: Size<f32>,
     <X::Inputs as Mul<N>>::Output: Size<f32>,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::sumi(f)
 }
@@ -1553,7 +1553,7 @@ pub fn pipei<N, X, F>(f: F) -> An<Chain<N, X>>
 where
     N: Size<f32> + Size<X>,
     X: AudioNode,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::pipei(f)
 }
@@ -1639,7 +1639,7 @@ pub fn reverb_stereo(
     time: f32,
     damping: f32,
 ) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
-    super::prelude::reverb_stereo(room_size as f64, time as f64, damping as f64)
+    super::prelude::reverb_stereo(room_size as TargetF, time as TargetF, damping as TargetF)
 }
 
 /// Create a stereo reverb unit (32-channel hybrid FDN).
@@ -1669,10 +1669,10 @@ pub fn reverb2_stereo(
     filter: An<impl AudioNode<Inputs = U1, Outputs = U1>>,
 ) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
     super::prelude::reverb2_stereo(
-        room_size as f64,
-        time as f64,
-        diffusion as f64,
-        modulation_speed as f64,
+        room_size as TargetF,
+        time as TargetF,
+        diffusion as TargetF,
+        modulation_speed as TargetF,
         filter,
     )
 }
@@ -1698,8 +1698,8 @@ pub fn reverb3_stereo(
     filter: An<impl AudioNode<Inputs = U1, Outputs = U1>>,
 ) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
     An(super::reverb::Reverb::new(
-        time as f64,
-        diffusion as f64,
+        time as TargetF,
+        diffusion as TargetF,
         filter.0,
     ))
 }
@@ -1712,7 +1712,7 @@ pub fn reverb3_stereo(
 /// - Output 0: reverberated left signal
 /// - Output 1: reverberated right signal
 pub fn reverb4_stereo(room_size: f32, time: f32) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
-    super::prelude::reverb4_stereo(room_size as f64, time as f64)
+    super::prelude::reverb4_stereo(room_size as TargetF, time as TargetF)
 }
 
 /// Create a stereo reverb unit, given delay times (in seconds) for the 32 delay lines
@@ -1725,7 +1725,7 @@ pub fn reverb4_stereo_delays(
     delays: &[f32],
     time: f32,
 ) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
-    super::prelude::reverb4_stereo_delays(delays, time as f64)
+    super::prelude::reverb4_stereo_delays(delays, time as TargetF)
 }
 
 /// Saw-like discrete summation formula oscillator.
@@ -2222,7 +2222,7 @@ pub fn wavech_at(
 /// saw_hz(110.0) >> chorus(0, 0.015, 0.005, 0.5);
 /// ```
 pub fn chorus(
-    seed: u64,
+    seed: TargetU,
     separation: f32,
     variation: f32,
     mod_frequency: f32,
@@ -2234,14 +2234,14 @@ pub fn chorus(
 /// `feedback_amount`: amount of feedback (for example, 0.9 or -0.9). Negative feedback inverts feedback phase.
 /// `minimum_delay`: minimum delay in seconds (for example, 0.005).
 /// `maximum_delay`: maximum delay in seconds (for example, 0.010).
-/// ´delay_f´: Delay in `minimum_delay`...`maximum_delay` as a function of time. For example, `|t| lerp11(0.005, 0.010, sin_hz(0.1, t))`.
+/// ´delay_f´: Delay in `minimum_delay`...`maximum_delay` as a function of time. For example, `|t: TargetF| lerp11(0.005, 0.010, sin_hz(0.1, t))`.
 /// - Input 0: audio
 /// - Output 0: flanged audio, including original signal
 ///
 /// ### Example: Flanged Saw Wave
 /// ```
 /// use fundsp::hacker32::*;
-/// saw_hz(110.0) >> flanger(0.5, 0.005, 0.010, |t| lerp11(0.005, 0.010, sin_hz(0.1, t)));
+/// saw_hz(110.0) >> flanger(0.5, 0.005, 0.010, |t: TargetF| lerp11(0.005, 0.010, sin_hz(0.1, t)));
 /// ```
 pub fn flanger<X: Fn(f32) -> f32 + Clone + Send + Sync>(
     feedback_amount: f32,
@@ -2254,14 +2254,14 @@ pub fn flanger<X: Fn(f32) -> f32 + Clone + Send + Sync>(
 
 /// Mono phaser.
 /// `feedback_amount`: amount of feedback (for example, 0.5). Negative feedback inverts feedback phase.
-/// `phase_f`: allpass modulation value in 0...1 as function of time, for example `|t| sin_hz(0.1, t) * 0.5 + 0.5`.
+/// `phase_f`: allpass modulation value in 0...1 as function of time, for example `|t: TargetF| sin_hz(0.1, t) * 0.5 + 0.5`.
 /// - Input 0: audio
 /// - Output 0: phased audio
 ///
 /// ### Example: Phased Saw Wave
 /// ```
 /// use fundsp::hacker32::*;
-/// saw_hz(110.0) >> phaser(0.5, |t| sin_hz(0.1, t) * 0.5 + 0.5);
+/// saw_hz(110.0) >> phaser(0.5, |t: TargetF| sin_hz(0.1, t) * 0.5 + 0.5);
 /// ```
 pub fn phaser<X: Fn(f32) -> f32 + Clone + Send + Sync>(
     feedback_amount: f32,
@@ -2324,7 +2324,7 @@ where
 /// ```
 /// use fundsp::hacker32::*;
 /// let time = shared(0.0);
-/// timer(&time) | lfo(|t: f32| 1.0 / (1.0 + t));
+/// timer(&time) | lfo(|t: TargetF: f32| 1.0 / (1.0 + t));
 /// ```
 pub fn timer(shared: &Shared) -> An<Timer> {
     An(Timer::new(shared))

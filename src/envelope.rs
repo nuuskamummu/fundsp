@@ -6,6 +6,7 @@ use super::combinator::*;
 use super::math::*;
 use super::signal::*;
 use super::*;
+use target_width::*;
 use core::marker::PhantomData;
 use numeric_array::*;
 
@@ -29,7 +30,7 @@ where
     /// End of current segment.
     t_1: F,
     /// Current time dependent hash.
-    t_hash: u64,
+    t_hash: TargetU,
     /// Value at start of current segment.
     value_0: Frame<f32, R::Size>,
     /// Value at end of current segment.
@@ -43,7 +44,7 @@ where
     /// Sample duration in seconds.
     sample_duration: F,
     /// Deterministic pseudorandom phase.
-    hash: u64,
+    hash: TargetU,
 }
 
 impl<F, E, R> Envelope<F, E, R>
@@ -106,7 +107,7 @@ where
     R: ConstantFrame<Sample = F>,
     R::Size: Size<F> + Size<f32>,
 {
-    const ID: u64 = 14;
+    const ID: TargetU = 14;
     type Inputs = typenum::U0;
     type Outputs = R::Size;
 
@@ -120,7 +121,7 @@ where
         self.value_1 = self.value_0.clone();
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_duration = convert(1.0 / sample_rate);
     }
 
@@ -142,7 +143,7 @@ where
         let mut i = 0;
         while i < size {
             let segment_samples_left =
-                ((self.t_1 - self.t) / self.sample_duration).ceil().to_i64() as usize;
+                ((self.t_1 - self.t) / self.sample_duration).ceil().to_target_i() as usize;
             let loop_samples = Num::min(size - i, segment_samples_left);
             for channel in 0..self.outputs() {
                 let mut value = self.value[channel];
@@ -154,19 +155,19 @@ where
                 self.value[channel] = value;
             }
             i += loop_samples;
-            self.t += F::new(loop_samples as i64) * self.sample_duration;
+            self.t += F::new(loop_samples as TargetI) * self.sample_duration;
             if loop_samples == segment_samples_left {
                 self.next_segment();
             }
         }
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.t_hash = hash;
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Generator(0.0).route(input, self.outputs())
     }
 }
@@ -192,7 +193,7 @@ where
     /// End of current segment.
     t_1: F,
     /// Current time dependent hash.
-    t_hash: u64,
+    t_hash: TargetU,
     /// Value at start of current segment.
     value_0: Frame<f32, R::Size>,
     /// Value at end of current segment.
@@ -206,7 +207,7 @@ where
     /// Sample duration in seconds.
     sample_duration: F,
     /// Deterministic pseudorandom phase.
-    hash: u64,
+    hash: TargetU,
     _marker: PhantomData<I>,
 }
 
@@ -279,7 +280,7 @@ where
     R: ConstantFrame<Sample = F>,
     R::Size: Size<F> + Size<f32>,
 {
-    const ID: u64 = 53;
+    const ID: TargetU = 53;
     type Inputs = I;
     type Outputs = R::Size;
 
@@ -290,7 +291,7 @@ where
         self.t_hash = self.hash;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_duration = convert(1.0 / sample_rate);
     }
 
@@ -315,7 +316,7 @@ where
         let mut i = 0;
         while i < size {
             let segment_samples_left =
-                ceil((self.t_1 - self.t) / self.sample_duration).to_i64() as usize;
+                ceil((self.t_1 - self.t) / self.sample_duration).to_target_i() as usize;
             let loop_samples = min(size - i, segment_samples_left);
             for channel in 0..self.outputs() {
                 let mut value = self.value[channel];
@@ -327,19 +328,19 @@ where
                 self.value[channel] = value;
             }
             i += loop_samples;
-            self.t += F::new(loop_samples as i64) * self.sample_duration;
+            self.t += F::new(loop_samples as TargetI) * self.sample_duration;
             if loop_samples == segment_samples_left && i < size {
                 self.next_segment(&Frame::generate(|j| input.at_f32(j, i)));
             }
         }
     }
 
-    fn set_hash(&mut self, hash: u64) {
+    fn set_hash(&mut self, hash: TargetU) {
         self.hash = hash;
         self.t_hash = hash;
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         Routing::Generator(0.0).route(input, self.outputs())
     }
 }

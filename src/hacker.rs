@@ -3,6 +3,7 @@
 extern crate alloc;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
+use target_width::TargetU;
 
 pub use super::audionode::*;
 pub use super::audiounit::*;
@@ -327,7 +328,7 @@ pub fn reverse<N: Size<f32>>() -> An<Reverse<N>> {
 /// ### Example: Vibrato
 /// ```
 /// use fundsp::hacker::*;
-/// lfo(|t| 110.0 + lerp11(-2.0, 2.0, sin_hz(t, 5.0))) >> sine();
+/// lfo(|t: TargetF| 110.0 + lerp11(-2.0, 2.0, sin_hz(t, 5.0))) >> sine();
 /// ```
 pub fn sine() -> An<Sine> {
     An(Sine::new())
@@ -352,7 +353,7 @@ pub fn sine_hz(f: f32) -> An<Pipe<Constant<U1>, Sine>> {
 /// ### Example
 /// ```
 /// use fundsp::hacker::*;
-/// lfo(|t| 440.0 + 10.0 * sin_hz(6.0, t)) >> rossler();
+/// lfo(|t: TargetF| 440.0 + 10.0 * sin_hz(6.0, t)) >> rossler();
 /// ```
 pub fn rossler() -> An<Rossler> {
     An(Rossler::new())
@@ -365,7 +366,7 @@ pub fn rossler() -> An<Rossler> {
 /// ### Example
 /// ```
 /// use fundsp::hacker::*;
-/// lfo(|t| 110.0 + 5.0 * sin_hz(5.0, t)) >> lorenz();
+/// lfo(|t: TargetF| 110.0 + 5.0 * sin_hz(5.0, t)) >> lorenz();
 /// ```
 pub fn lorenz() -> An<Lorenz> {
     An(Lorenz::new())
@@ -420,15 +421,15 @@ where
 /// use fundsp::hacker::*;
 /// (noise() | dc(1000.0)) >> butterpass();
 /// ```
-pub fn butterpass() -> An<ButterLowpass<f64, U2>> {
+pub fn butterpass() -> An<ButterLowpass<TargetF, U2>> {
     An(ButterLowpass::new(440.0))
 }
 
 /// Butterworth lowpass filter (2nd order) with fixed cutoff frequency `f` Hz.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn butterpass_hz(f: f32) -> An<ButterLowpass<f64, U1>> {
-    An(ButterLowpass::new(f as f64))
+pub fn butterpass_hz(f: f32) -> An<ButterLowpass<TargetF, U1>> {
+    An(ButterLowpass::new(f as TargetF))
 }
 
 /// One-pole lowpass filter (1st order).
@@ -441,7 +442,7 @@ pub fn butterpass_hz(f: f32) -> An<ButterLowpass<f64, U1>> {
 /// use fundsp::hacker::*;
 /// (noise() | dc(10.0)) >> lowpole();
 /// ```
-pub fn lowpole() -> An<Lowpole<f64, U2>> {
+pub fn lowpole() -> An<Lowpole<TargetF, U2>> {
     An(Lowpole::new(440.0))
 }
 
@@ -454,38 +455,38 @@ pub fn lowpole() -> An<Lowpole<f64, U2>> {
 /// use fundsp::hacker::*;
 /// noise() >> lowpole_hz(10.0);
 /// ```
-pub fn lowpole_hz(f: f32) -> An<Lowpole<f64, U1>> {
-    An(Lowpole::new(f as f64))
+pub fn lowpole_hz(f: f32) -> An<Lowpole<TargetF, U1>> {
+    An(Lowpole::new(f as TargetF))
 }
 
 /// Allpass filter (1st order) with a configurable delay (delay > 0) in samples at DC.
 /// - Input 0: audio
 /// - Input 1: delay in samples
 /// - Output 0: filtered audio
-pub fn allpole() -> An<Allpole<f64, U2>> {
+pub fn allpole() -> An<Allpole<TargetF, U2>> {
     An(Allpole::new(1.0))
 }
 
 /// Allpass filter (1st order) with `delay` (`delay` > 0) in samples at DC.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn allpole_delay(delay: f32) -> An<Allpole<f64, U1>> {
-    An(Allpole::new(delay as f64))
+pub fn allpole_delay(delay: f32) -> An<Allpole<TargetF, U1>> {
+    An(Allpole::new(delay as TargetF))
 }
 
 /// One-pole, one-zero highpass filter (1st order).
 /// - Input 0: audio
 /// - Input 1: cutoff frequency (Hz)
 /// - Output 0: filtered audio
-pub fn highpole() -> An<Highpole<f64, U2>> {
+pub fn highpole() -> An<Highpole<TargetF, U2>> {
     An(Highpole::new(440.0))
 }
 
 /// One-pole, one-zero highpass filter (1st order) with fixed `cutoff` frequency.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn highpole_hz(cutoff: f32) -> An<Highpole<f64, U1>> {
-    An(Highpole::new(cutoff as f64))
+pub fn highpole_hz(cutoff: f32) -> An<Highpole<TargetF, U1>> {
+    An(Highpole::new(cutoff as TargetF))
 }
 
 /// Constant-gain bandpass resonator.
@@ -499,7 +500,7 @@ pub fn highpole_hz(cutoff: f32) -> An<Highpole<f64, U1>> {
 /// use fundsp::hacker::*;
 /// (noise() | dc((440.0, 5.0))) >> resonator();
 /// ```
-pub fn resonator() -> An<Resonator<f64, U3>> {
+pub fn resonator() -> An<Resonator<TargetF, U3>> {
     An(Resonator::new(440.0, 110.0))
 }
 
@@ -512,16 +513,16 @@ pub fn resonator() -> An<Resonator<f64, U3>> {
 /// use fundsp::hacker::*;
 /// noise() >> resonator_hz(440.0, 5.0);
 /// ```
-pub fn resonator_hz(center: f32, bandwidth: f32) -> An<Resonator<f64, U1>> {
-    An(Resonator::new(center as f64, bandwidth as f64))
+pub fn resonator_hz(center: f32, bandwidth: f32) -> An<Resonator<TargetF, U1>> {
+    An(Resonator::new(center as TargetF, bandwidth as TargetF))
 }
 
 /// An arbitrary biquad filter with coefficients in normalized form.
 /// - Input 0: signal
 /// - Output 0: filtered signal
-pub fn biquad(a1: f32, a2: f32, b0: f32, b1: f32, b2: f32) -> An<Biquad<f64>> {
+pub fn biquad(a1: f32, a2: f32, b0: f32, b1: f32, b2: f32) -> An<Biquad<TargetF>> {
     An(Biquad::with_coefs(BiquadCoefs::arbitrary(
-        a1 as f64, a2 as f64, b0 as f64, b1 as f64, b2 as f64,
+        a1 as TargetF, a2 as TargetF, b0 as TargetF, b1 as TargetF, b2 as TargetF,
     )))
 }
 
@@ -530,7 +531,7 @@ pub fn biquad(a1: f32, a2: f32, b0: f32, b1: f32, b2: f32) -> An<Biquad<f64>> {
 /// - Input 1: cutoff frequency (Hz)
 /// - Input 2: Q
 /// - Output 0: filtered signal
-pub fn moog() -> An<Moog<f64, U3>> {
+pub fn moog() -> An<Moog<TargetF, U3>> {
     An(Moog::new(1000.0, 0.1))
 }
 
@@ -538,15 +539,15 @@ pub fn moog() -> An<Moog<f64, U3>> {
 /// - Input 0: input signal
 /// - Input 1: cutoff frequency (Hz)
 /// - Output 0: filtered signal
-pub fn moog_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Moog<f64, U3>>> {
-    (multipass::<U2>() | dc(q)) >> An(Moog::new(1000.0, q as f64))
+pub fn moog_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Moog<TargetF, U3>>> {
+    (multipass::<U2>() | dc(q)) >> An(Moog::new(1000.0, q as TargetF))
 }
 
 /// Moog resonant lowpass filter with fixed cutoff frequency and Q.
 /// - Input 0: input signal
 /// - Output 0: filtered signal
-pub fn moog_hz(frequency: f32, q: f32) -> An<Moog<f64, U1>> {
-    An(Moog::new(frequency as f64, q as f64))
+pub fn moog_hz(frequency: f32, q: f32) -> An<Moog<TargetF, U1>> {
+    An(Moog::new(frequency as TargetF, q as TargetF))
 }
 
 /// Control envelope from time-varying function `f(t)` with `t` in seconds.
@@ -557,13 +558,13 @@ pub fn moog_hz(frequency: f32, q: f32) -> An<Moog<f64, U1>> {
 /// ### Example: Mixing Pink And Brown Noise
 /// ```
 /// use fundsp::hacker::*;
-/// envelope(|t| (sin_hz(1.0, t), cos_hz(1.0, t))) * (pink() | brown()) >> join();
+/// envelope(|t: TargetF| (sin_hz(1.0, t), cos_hz(1.0, t))) * (pink() | brown()) >> join();
 /// ```
-pub fn envelope<E, R>(f: E) -> An<Envelope<f64, E, R>>
+pub fn envelope<E, R>(f: E) -> An<Envelope<TargetF, E, R>>
 where
-    E: FnMut(f64) -> R + Clone + Send + Sync,
-    R: ConstantFrame<Sample = f64>,
-    R::Size: Size<f32> + Size<f64>,
+    E: FnMut(TargetF) -> R + Clone + Send + Sync,
+    R: ConstantFrame<Sample = TargetF>,
+    R::Size: Size<f32> + Size<TargetF>,
 {
     // Signals containing frequencies no greater than about 20 Hz would be considered control rate.
     // Therefore, sampling at 500 Hz means these signals are fairly well represented.
@@ -580,13 +581,13 @@ where
 /// ### Example: Exponentially Decaying White Noise
 /// ```
 /// use fundsp::hacker::*;
-/// lfo(|t| exp(-t)) * white();
+/// lfo(|t: TargetF| exp(-t)) * white();
 /// ```
-pub fn lfo<E, R>(f: E) -> An<Envelope<f64, E, R>>
+pub fn lfo<E, R>(f: E) -> An<Envelope<TargetF, E, R>>
 where
-    E: FnMut(f64) -> R + Clone + Send + Sync,
-    R: ConstantFrame<Sample = f64>,
-    R::Size: Size<f32> + Size<f64>,
+    E: FnMut(TargetF) -> R + Clone + Send + Sync,
+    R: ConstantFrame<Sample = TargetF>,
+    R::Size: Size<f32> + Size<TargetF>,
 {
     An(Envelope::new(0.002, f))
 }
@@ -601,17 +602,17 @@ where
 /// ```
 /// use fundsp::hacker::*;
 /// let speed = shared(1.0);
-/// var(&speed) >> envelope2(|t, speed| exp(-t * speed));
+/// var(&speed) >> envelope2(|t: TargetF, speed| exp(-t * speed));
 /// ```
 pub fn envelope2<E, R>(
     mut f: E,
-) -> An<EnvelopeIn<f64, impl FnMut(f64, &Frame<f32, U1>) -> R + Clone, U1, R>>
+) -> An<EnvelopeIn<TargetF, impl FnMut(TargetF, &Frame<f32, U1>) -> R + Clone, U1, R>>
 where
-    E: FnMut(f64, f64) -> R + Clone + Send + Sync,
-    R: ConstantFrame<Sample = f64>,
-    R::Size: Size<f32> + Size<f64>,
+    E: FnMut(TargetF, TargetF) -> R + Clone + Send + Sync,
+    R: ConstantFrame<Sample = TargetF>,
+    R::Size: Size<f32> + Size<TargetF>,
 {
-    An(EnvelopeIn::new(0.002, move |t, i: &Frame<f32, U1>| {
+    An(EnvelopeIn::new(0.002, move |t: TargetF, i: &Frame<f32, U1>| {
         f(t, convert(i[0]))
     }))
 }
@@ -626,17 +627,17 @@ where
 /// ```
 /// use fundsp::hacker::*;
 /// let amp = shared(1.0);
-/// var(&amp) >> lfo2(|t, amp| amp * exp(-t));
+/// var(&amp) >> lfo2(|t: TargetF, amp| amp * exp(-t));
 /// ```
 pub fn lfo2<E, R>(
     mut f: E,
-) -> An<EnvelopeIn<f64, impl FnMut(f64, &Frame<f32, U1>) -> R + Clone, U1, R>>
+) -> An<EnvelopeIn<TargetF, impl FnMut(TargetF, &Frame<f32, U1>) -> R + Clone, U1, R>>
 where
-    E: FnMut(f64, f64) -> R + Clone + Send + Sync,
-    R: ConstantFrame<Sample = f64>,
-    R::Size: Size<f32> + Size<f64>,
+    E: FnMut(TargetF, TargetF) -> R + Clone + Send + Sync,
+    R: ConstantFrame<Sample = TargetF>,
+    R::Size: Size<f32> + Size<TargetF>,
 {
-    An(EnvelopeIn::new(0.002, move |t, i: &Frame<f32, U1>| {
+    An(EnvelopeIn::new(0.002, move |t: TargetF, i: &Frame<f32, U1>| {
         f(t, convert(i[0]))
     }))
 }
@@ -649,13 +650,13 @@ where
 /// - Output(s): envelope linearly interpolated from samples at 2 ms intervals (average).
 pub fn envelope3<E, R>(
     mut f: E,
-) -> An<EnvelopeIn<f64, impl FnMut(f64, &Frame<f32, U2>) -> R + Clone, U2, R>>
+) -> An<EnvelopeIn<TargetF, impl FnMut(TargetF, &Frame<f32, U2>) -> R + Clone, U2, R>>
 where
-    E: FnMut(f64, f64, f64) -> R + Clone + Send + Sync,
-    R: ConstantFrame<Sample = f64>,
-    R::Size: Size<f32> + Size<f64>,
+    E: FnMut(TargetF, TargetF, TargetF) -> R + Clone + Send + Sync,
+    R: ConstantFrame<Sample = TargetF>,
+    R::Size: Size<f32> + Size<TargetF>,
 {
-    An(EnvelopeIn::new(0.002, move |t, i: &Frame<f32, U2>| {
+    An(EnvelopeIn::new(0.002, move |t: TargetF, i: &Frame<f32, U2>| {
         f(t, convert(i[0]), convert(i[1]))
     }))
 }
@@ -672,18 +673,18 @@ where
 /// use fundsp::hacker::*;
 /// let min = shared(-1.0);
 /// let max = shared(1.0);
-/// (var(&min) | var(&max)) >> lfo3(|t, min, max| clamp(min, max, sin_hz(110.0, t)));
+/// (var(&min) | var(&max)) >> lfo3(|t: TargetF, min, max| clamp(min, max, sin_hz(110.0, t)));
 /// max.set(0.5);
 /// ```
 pub fn lfo3<E, R>(
     mut f: E,
-) -> An<EnvelopeIn<f64, impl FnMut(f64, &Frame<f32, U2>) -> R + Clone, U2, R>>
+) -> An<EnvelopeIn<TargetF, impl FnMut(TargetF, &Frame<f32, U2>) -> R + Clone, U2, R>>
 where
-    E: FnMut(f64, f64, f64) -> R + Clone + Send + Sync,
-    R: ConstantFrame<Sample = f64>,
-    R::Size: Size<f32> + Size<f64>,
+    E: FnMut(TargetF, TargetF, TargetF) -> R + Clone + Send + Sync,
+    R: ConstantFrame<Sample = TargetF>,
+    R::Size: Size<f32> + Size<TargetF>,
 {
-    An(EnvelopeIn::new(0.002, move |t, i: &Frame<f32, U2>| {
+    An(EnvelopeIn::new(0.002, move |t: TargetF, i: &Frame<f32, U2>| {
         f(t, convert(i[0]), convert(i[1]))
     }))
 }
@@ -694,12 +695,12 @@ where
 /// Synonymous with `lfo_in`.
 /// - Inputs: i
 /// - Output(s): envelope linearly interpolated from samples at 2 ms intervals (average).
-pub fn envelope_in<E, I, R>(f: E) -> An<EnvelopeIn<f64, E, I, R>>
+pub fn envelope_in<E, I, R>(f: E) -> An<EnvelopeIn<TargetF, E, I, R>>
 where
-    E: FnMut(f64, &Frame<f32, I>) -> R + Clone + Send + Sync,
+    E: FnMut(TargetF, &Frame<f32, I>) -> R + Clone + Send + Sync,
     I: Size<f32>,
-    R: ConstantFrame<Sample = f64>,
-    R::Size: Size<f32> + Size<f64>,
+    R: ConstantFrame<Sample = TargetF>,
+    R::Size: Size<f32> + Size<TargetF>,
 {
     An(EnvelopeIn::new(0.002, f))
 }
@@ -710,12 +711,12 @@ where
 /// Synonymous with `envelope_in`.
 /// - Inputs: i
 /// - Output(s): envelope linearly interpolated from samples at 2 ms intervals (average).
-pub fn lfo_in<E, I, R>(f: E) -> An<EnvelopeIn<f64, E, I, R>>
+pub fn lfo_in<E, I, R>(f: E) -> An<EnvelopeIn<TargetF, E, I, R>>
 where
-    E: FnMut(f64, &Frame<f32, I>) -> R + Clone + Send + Sync,
+    E: FnMut(TargetF, &Frame<f32, I>) -> R + Clone + Send + Sync,
     I: Size<f32>,
-    R: ConstantFrame<Sample = f64>,
-    R::Size: Size<f32> + Size<f64>,
+    R: ConstantFrame<Sample = TargetF>,
+    R::Size: Size<f32> + Size<TargetF>,
 {
     An(EnvelopeIn::new(0.002, f))
 }
@@ -750,7 +751,7 @@ pub fn adsr_live(
 /// use fundsp::hacker::*;
 /// mls_bits(31);
 /// ```
-pub fn mls_bits(n: u64) -> An<Mls> {
+pub fn mls_bits(n: TargetU) -> An<Mls> {
     An(Mls::new(MlsState::new(n as u32)))
 }
 
@@ -875,7 +876,7 @@ pub fn multitick<N: Size<f32>>() -> An<Tick<N>> {
 /// delay(1.0);
 /// ```
 pub fn delay(t: f32) -> An<Delay> {
-    An(Delay::new(t as f64))
+    An(Delay::new(t as TargetF))
 }
 
 /// Tapped delay line with cubic interpolation.
@@ -888,7 +889,7 @@ pub fn delay(t: f32) -> An<Delay> {
 /// ### Example: Variable Delay
 /// ```
 /// use fundsp::hacker::*;
-/// pass() & (pass() | lfo(|t| lerp11(0.01, 0.1, spline_noise(0, t)))) >> tap(0.01, 0.1);
+/// pass() & (pass() | lfo(|t: TargetF| lerp11(0.01, 0.1, spline_noise(0, t)))) >> tap(0.01, 0.1);
 /// ```
 pub fn tap(min_delay: f32, max_delay: f32) -> An<Tap<U1>> {
     An(Tap::new(min_delay, max_delay))
@@ -905,7 +906,7 @@ pub fn tap(min_delay: f32, max_delay: f32) -> An<Tap<U1>> {
 /// ### Example: Dual Variable Delay
 /// ```
 /// use fundsp::hacker::*;
-/// (pass() | lfo(|t| (lerp11(0.01, 0.1, spline_noise(0, t)), lerp11(0.1, 0.2, spline_noise(1, t))))) >> multitap::<U2>(0.01, 0.2);
+/// (pass() | lfo(|t: TargetF| (lerp11(0.01, 0.1, spline_noise(0, t)), lerp11(0.1, 0.2, spline_noise(1, t))))) >> multitap::<U2>(0.01, 0.2);
 /// ```
 pub fn multitap<N>(min_delay: f32, max_delay: f32) -> An<Tap<N>>
 where
@@ -925,7 +926,7 @@ where
 /// ### Example: Variable Delay
 /// ```
 /// use fundsp::hacker::*;
-/// pass() & (pass() | lfo(|t| lerp11(0.01, 0.1, spline_noise(0, t)))) >> tap_linear(0.01, 0.1);
+/// pass() & (pass() | lfo(|t: TargetF| lerp11(0.01, 0.1, spline_noise(0, t)))) >> tap_linear(0.01, 0.1);
 /// ```
 pub fn tap_linear(min_delay: f32, max_delay: f32) -> An<TapLinear<U1>> {
     An(TapLinear::new(min_delay, max_delay))
@@ -942,7 +943,7 @@ pub fn tap_linear(min_delay: f32, max_delay: f32) -> An<TapLinear<U1>> {
 /// ### Example: Dual Variable Delay
 /// ```
 /// use fundsp::hacker::*;
-/// (pass() | lfo(|t| (lerp11(0.01, 0.1, spline_noise(0, t)), lerp11(0.1, 0.2, spline_noise(1, t))))) >> multitap_linear::<U2>(0.01, 0.2);
+/// (pass() | lfo(|t: TargetF| (lerp11(0.01, 0.1, spline_noise(0, t)), lerp11(0.1, 0.2, spline_noise(1, t))))) >> multitap_linear::<U2>(0.01, 0.2);
 /// ```
 pub fn multitap_linear<N>(min_delay: f32, max_delay: f32) -> An<TapLinear<N>>
 where
@@ -981,7 +982,7 @@ where
 /// ### Example: Resampled Pink Noise
 /// ```
 /// use fundsp::hacker::*;
-/// lfo(|t| xerp11(0.5, 2.0, spline_noise(1, t))) >> resample(pink());
+/// lfo(|t: TargetF| xerp11(0.5, 2.0, spline_noise(1, t))) >> resample(pink());
 /// ```
 pub fn resample<X>(node: An<X>) -> An<Resampler<X>>
 where
@@ -1109,8 +1110,8 @@ where
 /// use fundsp::hacker::*;
 /// dcblock_hz(8.0);
 /// ```
-pub fn dcblock_hz(cutoff: f32) -> An<DCBlock<f64>> {
-    An(DCBlock::new(cutoff as f64))
+pub fn dcblock_hz(cutoff: f32) -> An<DCBlock<TargetF>> {
+    An(DCBlock::new(cutoff as TargetF))
 }
 
 /// Keeps a signal zero centered. The cutoff of the filter is 10 Hz.
@@ -1122,22 +1123,22 @@ pub fn dcblock_hz(cutoff: f32) -> An<DCBlock<f64>> {
 /// use fundsp::hacker::*;
 /// dcblock() | dcblock();
 /// ```
-pub fn dcblock() -> An<DCBlock<f64>> {
+pub fn dcblock() -> An<DCBlock<TargetF>> {
     An(DCBlock::new(10.0))
 }
 
 /// Apply 10 ms of fade-in to signal at time zero.
 /// - Input 0: input signal
 /// - Output 0: signal with fade-in
-pub fn declick() -> An<Declick<f64>> {
+pub fn declick() -> An<Declick<TargetF>> {
     An(Declick::new(0.010))
 }
 
 /// Apply `t` seconds of fade-in to signal at time zero.
 /// - Input 0: input signal
 /// - Output 0: signal with fade-in
-pub fn declick_s(t: f32) -> An<Declick<f64>> {
-    An(Declick::new(t as f64))
+pub fn declick_s(t: f32) -> An<Declick<TargetF>> {
+    An(Declick::new(t as TargetF))
 }
 
 /// Shape signal with a waveshaper function.
@@ -1213,8 +1214,8 @@ pub fn pan(pan: f32) -> An<Panner<U1>> {
 /// let parameter = shared(1.0);
 /// var(&parameter) >> follow(0.01);
 /// ```
-pub fn follow(response_time: f32) -> An<Follow<f64>> {
-    An(Follow::new(response_time as f64))
+pub fn follow(response_time: f32) -> An<Follow<TargetF>> {
+    An(Follow::new(response_time as TargetF))
 }
 
 /// Parameter follower filter with halfway response times in seconds.
@@ -1228,8 +1229,8 @@ pub fn follow(response_time: f32) -> An<Follow<f64>> {
 /// let parameter = shared(1.0);
 /// var(&parameter) >> afollow(0.01, 0.02);
 /// ```
-pub fn afollow(attack_time: f32, release_time: f32) -> An<AFollow<f64>> {
-    An(AFollow::new(attack_time as f64, release_time as f64))
+pub fn afollow(attack_time: f32, release_time: f32) -> An<AFollow<TargetF>> {
+    An(AFollow::new(attack_time as TargetF, release_time as TargetF))
 }
 
 /// Look-ahead limiter with attack and release times in seconds.
@@ -1255,19 +1256,19 @@ pub fn limiter_stereo(attack_time: f32, release_time: f32) -> An<Limiter<U2>> {
 /// Pinking filter.
 /// - Input 0: input signal
 /// - Output 0: filtered signal
-pub fn pinkpass() -> An<Pinkpass<f64>> {
+pub fn pinkpass() -> An<Pinkpass<TargetF>> {
     An(Pinkpass::new())
 }
 
 /// Pink noise.
 /// - Output 0: pink noise
-pub fn pink() -> An<Pipe<Noise, Pinkpass<f64>>> {
+pub fn pink() -> An<Pipe<Noise, Pinkpass<TargetF>>> {
     white() >> pinkpass()
 }
 
 /// Brown noise.
 /// - Output 0: brown noise
-pub fn brown() -> An<Pipe<Noise, Binop<FrameMul<U1>, Lowpole<f64, U1>, Constant<U1>>>> {
+pub fn brown() -> An<Pipe<Noise, Binop<FrameMul<U1>, Lowpole<TargetF, U1>, Constant<U1>>>> {
     // Empirical normalization factor.
     white() >> lowpole_hz(10.0) * dc(13.7)
 }
@@ -1343,7 +1344,7 @@ where
     X: AudioNode,
     X::Inputs: Size<f32>,
     X::Outputs: Size<f32>,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::busi(f)
 }
@@ -1356,7 +1357,7 @@ where
 /// ### Example (Noise Bundle)
 /// ```
 /// use fundsp::hacker::*;
-/// busf::<U20, _, _>(|t| (noise() | dc((xerp(100.0, 1000.0, t), 20.0))) >> !resonator() >> resonator());
+/// busf::<U20, _, _>(|t: TargetF| (noise() | dc((xerp(100.0, 1000.0, t), 20.0))) >> !resonator() >> resonator());
 /// ```
 pub fn busf<N, X, Y>(f: Y) -> An<MultiBus<N, X>>
 where
@@ -1398,7 +1399,7 @@ where
     X::Outputs: Size<f32> + Mul<N>,
     <X::Inputs as Mul<N>>::Output: Size<f32>,
     <X::Outputs as Mul<N>>::Output: Size<f32>,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::stacki(f)
 }
@@ -1446,7 +1447,7 @@ where
     X::Inputs: Size<f32>,
     X::Outputs: Size<f32> + Mul<N>,
     <X::Outputs as Mul<N>>::Output: Size<f32>,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::branchi(f)
 }
@@ -1515,7 +1516,7 @@ where
     X::Inputs: Size<f32> + Mul<N>,
     X::Outputs: Size<f32>,
     <X::Inputs as Mul<N>>::Output: Size<f32>,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::sumi(f)
 }
@@ -1556,7 +1557,7 @@ pub fn pipei<N, X, F>(f: F) -> An<Chain<N, X>>
 where
     N: Size<f32> + Size<X>,
     X: AudioNode,
-    F: Fn(u64) -> An<X>,
+    F: Fn(TargetU) -> An<X>,
 {
     super::prelude::pipei(f)
 }
@@ -1642,7 +1643,7 @@ pub fn reverb_stereo(
     time: f32,
     damping: f32,
 ) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
-    super::prelude::reverb_stereo(room_size as f64, time as f64, damping as f64)
+    super::prelude::reverb_stereo(room_size as TargetF, time as TargetF, damping as TargetF)
 }
 
 /// Create a stereo reverb unit (32-channel hybrid FDN).
@@ -1672,10 +1673,10 @@ pub fn reverb2_stereo(
     filter: An<impl AudioNode<Inputs = U1, Outputs = U1>>,
 ) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
     super::prelude::reverb2_stereo(
-        room_size as f64,
-        time as f64,
-        diffusion as f64,
-        modulation_speed as f64,
+        room_size as TargetF,
+        time as TargetF,
+        diffusion as TargetF,
+        modulation_speed as TargetF,
         filter,
     )
 }
@@ -1701,8 +1702,8 @@ pub fn reverb3_stereo(
     filter: An<impl AudioNode<Inputs = U1, Outputs = U1>>,
 ) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
     An(super::reverb::Reverb::new(
-        time as f64,
-        diffusion as f64,
+        time as TargetF,
+        diffusion as TargetF,
         filter.0,
     ))
 }
@@ -1715,7 +1716,7 @@ pub fn reverb3_stereo(
 /// - Output 0: reverberated left signal
 /// - Output 1: reverberated right signal
 pub fn reverb4_stereo(room_size: f32, time: f32) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
-    super::prelude::reverb4_stereo(room_size as f64, time as f64)
+    super::prelude::reverb4_stereo(room_size as TargetF, time as TargetF)
 }
 
 /// Create a stereo reverb unit, given delay times (in seconds) for the 32 delay lines
@@ -1728,7 +1729,7 @@ pub fn reverb4_stereo_delays(
     delays: &[f32],
     time: f32,
 ) -> An<impl AudioNode<Inputs = U2, Outputs = U2>> {
-    super::prelude::reverb4_stereo_delays(delays, time as f64)
+    super::prelude::reverb4_stereo_delays(delays, time as TargetF)
 }
 
 /// Saw-like discrete summation formula oscillator.
@@ -1879,15 +1880,15 @@ pub fn hammond_hz(f: f32) -> An<Pipe<Constant<U1>, WaveSynth<U1>>> {
 /// - Input 1: cutoff frequency (Hz)
 /// - Input 2: Q
 /// - Output 0: filtered audio
-pub fn lowpass() -> An<Svf<f64, LowpassMode<f64>>> {
+pub fn lowpass() -> An<Svf<TargetF, LowpassMode<TargetF>>> {
     super::prelude::lowpass()
 }
 
 /// Lowpass filter with cutoff frequency `f` Hz and Q value `q`.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn lowpass_hz(f: f32, q: f32) -> An<FixedSvf<f64, LowpassMode<f64>>> {
-    super::prelude::lowpass_hz(f as f64, q as f64)
+pub fn lowpass_hz(f: f32, q: f32) -> An<FixedSvf<TargetF, LowpassMode<TargetF>>> {
+    super::prelude::lowpass_hz(f as TargetF, q as TargetF)
 }
 
 /// Lowpass filter with Q value `q`.
@@ -1896,8 +1897,8 @@ pub fn lowpass_hz(f: f32, q: f32) -> An<FixedSvf<f64, LowpassMode<f64>>> {
 /// - Output 0: filtered audio
 pub fn lowpass_q(
     q: f32,
-) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<f64, LowpassMode<f64>>>> {
-    super::prelude::lowpass_q(q as f64)
+) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<TargetF, LowpassMode<TargetF>>>> {
+    super::prelude::lowpass_q(q as TargetF)
 }
 
 /// Highpass filter.
@@ -1905,15 +1906,15 @@ pub fn lowpass_q(
 /// - Input 1: cutoff frequency (Hz)
 /// - Input 2: Q
 /// - Output 0: filtered audio
-pub fn highpass() -> An<Svf<f64, HighpassMode<f64>>> {
+pub fn highpass() -> An<Svf<TargetF, HighpassMode<TargetF>>> {
     super::prelude::highpass()
 }
 
 /// Highpass filter with cutoff frequency `f` Hz with Q value `q`.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn highpass_hz(f: f32, q: f32) -> An<FixedSvf<f64, HighpassMode<f64>>> {
-    super::prelude::highpass_hz(f as f64, q as f64)
+pub fn highpass_hz(f: f32, q: f32) -> An<FixedSvf<TargetF, HighpassMode<TargetF>>> {
+    super::prelude::highpass_hz(f as TargetF, q as TargetF)
 }
 
 /// Highpass filter with Q value `q`.
@@ -1922,8 +1923,8 @@ pub fn highpass_hz(f: f32, q: f32) -> An<FixedSvf<f64, HighpassMode<f64>>> {
 /// - Output 0: filtered audio
 pub fn highpass_q(
     q: f32,
-) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<f64, HighpassMode<f64>>>> {
-    super::prelude::highpass_q(q as f64)
+) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<TargetF, HighpassMode<TargetF>>>> {
+    super::prelude::highpass_q(q as TargetF)
 }
 
 /// Bandpass filter.
@@ -1931,15 +1932,15 @@ pub fn highpass_q(
 /// - Input 1: center frequency (Hz)
 /// - Input 2: Q
 /// - Output 0: filtered audio
-pub fn bandpass() -> An<Svf<f64, BandpassMode<f64>>> {
+pub fn bandpass() -> An<Svf<TargetF, BandpassMode<TargetF>>> {
     super::prelude::bandpass()
 }
 
 /// Bandpass filter centered at `f` Hz with Q value `q`.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn bandpass_hz(f: f32, q: f32) -> An<FixedSvf<f64, BandpassMode<f64>>> {
-    super::prelude::bandpass_hz(f as f64, q as f64)
+pub fn bandpass_hz(f: f32, q: f32) -> An<FixedSvf<TargetF, BandpassMode<TargetF>>> {
+    super::prelude::bandpass_hz(f as TargetF, q as TargetF)
 }
 
 /// Bandpass filter with Q value `q`.
@@ -1948,8 +1949,8 @@ pub fn bandpass_hz(f: f32, q: f32) -> An<FixedSvf<f64, BandpassMode<f64>>> {
 /// - Output 0: filtered audio
 pub fn bandpass_q(
     q: f32,
-) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<f64, BandpassMode<f64>>>> {
-    super::prelude::bandpass_q(q as f64)
+) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<TargetF, BandpassMode<TargetF>>>> {
+    super::prelude::bandpass_q(q as TargetF)
 }
 
 /// Notch filter.
@@ -1957,23 +1958,23 @@ pub fn bandpass_q(
 /// - Input 1: center frequency (Hz)
 /// - Input 2: Q
 /// - Output 0: filtered audio
-pub fn notch() -> An<Svf<f64, NotchMode<f64>>> {
+pub fn notch() -> An<Svf<TargetF, NotchMode<TargetF>>> {
     super::prelude::notch()
 }
 
 /// Notch filter centered at `f` Hz with Q value `q`.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn notch_hz(f: f32, q: f32) -> An<FixedSvf<f64, NotchMode<f64>>> {
-    super::prelude::notch_hz(f as f64, q as f64)
+pub fn notch_hz(f: f32, q: f32) -> An<FixedSvf<TargetF, NotchMode<TargetF>>> {
+    super::prelude::notch_hz(f as TargetF, q as TargetF)
 }
 
 /// Notch filter with Q value `q`.
 /// - Input 0: audio
 /// - Input 1: center frequency (Hz)
 /// - Output 0: filtered audio
-pub fn notch_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<f64, NotchMode<f64>>>> {
-    super::prelude::notch_q(q as f64)
+pub fn notch_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<TargetF, NotchMode<TargetF>>>> {
+    super::prelude::notch_q(q as TargetF)
 }
 
 /// Peaking filter.
@@ -1981,23 +1982,23 @@ pub fn notch_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<f64, N
 /// - Input 1: center frequency (Hz)
 /// - Input 2: Q
 /// - Output 0: filtered audio
-pub fn peak() -> An<Svf<f64, PeakMode<f64>>> {
+pub fn peak() -> An<Svf<TargetF, PeakMode<TargetF>>> {
     super::prelude::peak()
 }
 
 /// Peaking filter centered at `f` Hz with Q value `q`.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn peak_hz(f: f32, q: f32) -> An<FixedSvf<f64, PeakMode<f64>>> {
-    super::prelude::peak_hz(f as f64, q as f64)
+pub fn peak_hz(f: f32, q: f32) -> An<FixedSvf<TargetF, PeakMode<TargetF>>> {
+    super::prelude::peak_hz(f as TargetF, q as TargetF)
 }
 
 /// Peaking filter with Q value `q`.
 /// - Input 0: audio
 /// - Input 1: center frequency (Hz)
 /// - Output 0: filtered audio
-pub fn peak_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<f64, PeakMode<f64>>>> {
-    super::prelude::peak_q(q as f64)
+pub fn peak_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<TargetF, PeakMode<TargetF>>>> {
+    super::prelude::peak_q(q as TargetF)
 }
 
 /// Allpass filter.
@@ -2005,15 +2006,15 @@ pub fn peak_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<f64, Pe
 /// - Input 1: center frequency (Hz)
 /// - Input 2: Q
 /// - Output 0: filtered audio
-pub fn allpass() -> An<Svf<f64, AllpassMode<f64>>> {
+pub fn allpass() -> An<Svf<TargetF, AllpassMode<TargetF>>> {
     super::prelude::allpass()
 }
 
 /// Allpass filter centered at `f` Hz with Q value `q`.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn allpass_hz(f: f32, q: f32) -> An<FixedSvf<f64, AllpassMode<f64>>> {
-    super::prelude::allpass_hz(f as f64, q as f64)
+pub fn allpass_hz(f: f32, q: f32) -> An<FixedSvf<TargetF, AllpassMode<TargetF>>> {
+    super::prelude::allpass_hz(f as TargetF, q as TargetF)
 }
 
 /// Allpass filter with Q value `q`.
@@ -2022,8 +2023,8 @@ pub fn allpass_hz(f: f32, q: f32) -> An<FixedSvf<f64, AllpassMode<f64>>> {
 /// - Output 0: filtered audio
 pub fn allpass_q(
     q: f32,
-) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<f64, AllpassMode<f64>>>> {
-    super::prelude::allpass_q(q as f64)
+) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Svf<TargetF, AllpassMode<TargetF>>>> {
+    super::prelude::allpass_q(q as TargetF)
 }
 
 /// Bell filter with adjustable gain.
@@ -2032,15 +2033,15 @@ pub fn allpass_q(
 /// - Input 2: Q
 /// - Input 3: amplitude gain
 /// - Output 0: filtered audio
-pub fn bell() -> An<Svf<f64, BellMode<f64>>> {
+pub fn bell() -> An<Svf<TargetF, BellMode<TargetF>>> {
     super::prelude::bell()
 }
 
 /// Bell filter centered at `f` Hz with Q value `q` and amplitude gain `gain`.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn bell_hz(f: f32, q: f32, gain: f32) -> An<FixedSvf<f64, BellMode<f64>>> {
-    super::prelude::bell_hz(f as f64, q as f64, gain as f64)
+pub fn bell_hz(f: f32, q: f32, gain: f32) -> An<FixedSvf<TargetF, BellMode<TargetF>>> {
+    super::prelude::bell_hz(f as TargetF, q as TargetF, gain as TargetF)
 }
 
 /// Bell filter with with Q value `q` and amplitude gain `gain`.
@@ -2050,8 +2051,8 @@ pub fn bell_hz(f: f32, q: f32, gain: f32) -> An<FixedSvf<f64, BellMode<f64>>> {
 pub fn bell_q(
     q: f32,
     gain: f32,
-) -> An<Pipe<Stack<MultiPass<U2>, Constant<U2>>, Svf<f64, BellMode<f64>>>> {
-    super::prelude::bell_q(q as f64, gain as f64)
+) -> An<Pipe<Stack<MultiPass<U2>, Constant<U2>>, Svf<TargetF, BellMode<TargetF>>>> {
+    super::prelude::bell_q(q as TargetF, gain as TargetF)
 }
 
 /// Low shelf filter with adjustable gain.
@@ -2060,15 +2061,15 @@ pub fn bell_q(
 /// - Input 2: Q
 /// - Input 3: amplitude gain
 /// - Output 0: filtered audio
-pub fn lowshelf() -> An<Svf<f64, LowshelfMode<f64>>> {
+pub fn lowshelf() -> An<Svf<TargetF, LowshelfMode<TargetF>>> {
     super::prelude::lowshelf()
 }
 
 /// Low shelf filter centered at `f` Hz with Q value `q` and amplitude gain `gain`.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn lowshelf_hz(f: f32, q: f32, gain: f32) -> An<FixedSvf<f64, LowshelfMode<f64>>> {
-    super::prelude::lowshelf_hz(f as f64, q as f64, gain as f64)
+pub fn lowshelf_hz(f: f32, q: f32, gain: f32) -> An<FixedSvf<TargetF, LowshelfMode<TargetF>>> {
+    super::prelude::lowshelf_hz(f as TargetF, q as TargetF, gain as TargetF)
 }
 
 /// Low shelf filter with with Q value `q` and amplitude gain `gain`.
@@ -2078,8 +2079,8 @@ pub fn lowshelf_hz(f: f32, q: f32, gain: f32) -> An<FixedSvf<f64, LowshelfMode<f
 pub fn lowshelf_q(
     q: f32,
     gain: f32,
-) -> An<Pipe<Stack<MultiPass<U2>, Constant<U2>>, Svf<f64, LowshelfMode<f64>>>> {
-    super::prelude::lowshelf_q(q as f64, gain as f64)
+) -> An<Pipe<Stack<MultiPass<U2>, Constant<U2>>, Svf<TargetF, LowshelfMode<TargetF>>>> {
+    super::prelude::lowshelf_q(q as TargetF, gain as TargetF)
 }
 
 /// High shelf filter with adjustable gain.
@@ -2088,15 +2089,15 @@ pub fn lowshelf_q(
 /// - Input 2: Q
 /// - Input 3: amplitude gain
 /// - Output 0: filtered audio
-pub fn highshelf() -> An<Svf<f64, HighshelfMode<f64>>> {
+pub fn highshelf() -> An<Svf<TargetF, HighshelfMode<TargetF>>> {
     super::prelude::highshelf()
 }
 
 /// High shelf filter centered at `f` Hz with Q value `q` and amplitude gain `gain`.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn highshelf_hz(f: f32, q: f32, gain: f32) -> An<FixedSvf<f64, HighshelfMode<f64>>> {
-    super::prelude::highshelf_hz(f as f64, q as f64, gain as f64)
+pub fn highshelf_hz(f: f32, q: f32, gain: f32) -> An<FixedSvf<TargetF, HighshelfMode<TargetF>>> {
+    super::prelude::highshelf_hz(f as TargetF, q as TargetF, gain as TargetF)
 }
 
 /// High shelf filter with with Q value `q` and amplitude gain `gain`.
@@ -2106,8 +2107,8 @@ pub fn highshelf_hz(f: f32, q: f32, gain: f32) -> An<FixedSvf<f64, HighshelfMode
 pub fn highshelf_q(
     q: f32,
     gain: f32,
-) -> An<Pipe<Stack<MultiPass<U2>, Constant<U2>>, Svf<f64, HighshelfMode<f64>>>> {
-    super::prelude::highshelf_q(q as f64, gain as f64)
+) -> An<Pipe<Stack<MultiPass<U2>, Constant<U2>>, Svf<TargetF, HighshelfMode<TargetF>>>> {
+    super::prelude::highshelf_q(q as TargetF, gain as TargetF)
 }
 
 /// Resonant two-pole lowpass filter.
@@ -2115,23 +2116,23 @@ pub fn highshelf_q(
 /// - Input 1: cutoff frequency
 /// - Input 2: Q
 /// - Output 0: filtered audio
-pub fn lowrez() -> An<Rez<f64, U3>> {
+pub fn lowrez() -> An<Rez<TargetF, U3>> {
     super::prelude::lowrez()
 }
 
 /// Resonant two-pole lowpass filter with fixed cutoff frequency and Q.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn lowrez_hz(cutoff: f32, q: f32) -> An<Rez<f64, U1>> {
-    super::prelude::lowrez_hz(cutoff as f64, q as f64)
+pub fn lowrez_hz(cutoff: f32, q: f32) -> An<Rez<TargetF, U1>> {
+    super::prelude::lowrez_hz(cutoff as TargetF, q as TargetF)
 }
 
 /// Resonant two-pole lowpass filter with fixed Q.
 /// - Input 0: audio
 /// - Input 1: cutoff frequency
 /// - Output 0: filtered audio
-pub fn lowrez_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Rez<f64, U3>>> {
-    super::prelude::lowrez_q(q as f64)
+pub fn lowrez_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Rez<TargetF, U3>>> {
+    super::prelude::lowrez_q(q as TargetF)
 }
 
 /// Resonant two-pole bandpass filter.
@@ -2139,23 +2140,23 @@ pub fn lowrez_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Rez<f64, 
 /// - Input 1: center frequency
 /// - Input 2: Q
 /// - Output 0: filtered audio
-pub fn bandrez() -> An<Rez<f64, U3>> {
+pub fn bandrez() -> An<Rez<TargetF, U3>> {
     super::prelude::bandrez()
 }
 
 /// Resonant two-pole bandpass filter with fixed center frequency and Q.
 /// - Input 0: audio
 /// - Output 0: filtered audio
-pub fn bandrez_hz(center: f32, q: f32) -> An<Rez<f64, U1>> {
-    super::prelude::bandrez_hz(center as f64, q as f64)
+pub fn bandrez_hz(center: f32, q: f32) -> An<Rez<TargetF, U1>> {
+    super::prelude::bandrez_hz(center as TargetF, q as TargetF)
 }
 
 /// Resonant two-pole bandpass filter with fixed Q.
 /// - Input 0: audio
 /// - Input 1: cutoff frequency
 /// - Output 0: filtered audio
-pub fn bandrez_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Rez<f64, U3>>> {
-    super::prelude::bandrez_q(q as f64)
+pub fn bandrez_q(q: f32) -> An<Pipe<Stack<MultiPass<U2>, Constant<U1>>, Rez<TargetF, U3>>> {
+    super::prelude::bandrez_q(q as TargetF)
 }
 
 /// Pulse wave oscillator.
@@ -2172,7 +2173,7 @@ pub fn pulse() -> An<PulseWave> {
 /// - Input 2: Q
 /// - Input 3: morph in -1...1 (-1 = lowpass, 0 = peak, 1 = highpass)
 /// - Output 0: filtered signal
-pub fn morph() -> An<Morph<f64>> {
+pub fn morph() -> An<Morph<TargetF>> {
     super::prelude::morph()
 }
 
@@ -2180,8 +2181,8 @@ pub fn morph() -> An<Morph<f64>> {
 /// (-1 = lowpass, 0 = peaking, 1 = highpass).
 /// - Input 0: input signal
 /// - Output 0: filtered signal
-pub fn morph_hz(f: f32, q: f32, morph: f32) -> An<Pipe<Stack<Pass, Constant<U3>>, Morph<f64>>> {
-    super::prelude::morph_hz(f as f64, q as f64, morph as f64)
+pub fn morph_hz(f: f32, q: f32, morph: f32) -> An<Pipe<Stack<Pass, Constant<U3>>, Morph<TargetF>>> {
+    super::prelude::morph_hz(f as TargetF, q as TargetF, morph as TargetF)
 }
 
 /// Play back a channel of a `Wave`.
@@ -2225,7 +2226,7 @@ pub fn wavech_at(
 /// saw_hz(110.0) >> chorus(0, 0.015, 0.005, 0.5);
 /// ```
 pub fn chorus(
-    seed: u64,
+    seed: TargetU,
     separation: f32,
     variation: f32,
     mod_frequency: f32,
@@ -2237,14 +2238,14 @@ pub fn chorus(
 /// `feedback_amount`: amount of feedback (for example, 0.9 or -0.9). Negative feedback inverts feedback phase.
 /// `minimum_delay`: minimum delay in seconds (for example, 0.005).
 /// `maximum_delay`: maximum delay in seconds (for example, 0.010).
-/// ´delay_f´: Delay in `minimum_delay`...`maximum_delay` as a function of time. For example, `|t| lerp11(0.005, 0.010, sin_hz(0.1, t))`.
+/// ´delay_f´: Delay in `minimum_delay`...`maximum_delay` as a function of time. For example, `|t: TargetF| lerp11(0.005, 0.010, sin_hz(0.1, t))`.
 /// - Input 0: audio
 /// - Output 0: flanged audio, including original signal
 ///
 /// ### Example: Flanged Saw Wave
 /// ```
 /// use fundsp::hacker::*;
-/// saw_hz(110.0) >> flanger(0.5, 0.005, 0.010, |t| lerp11(0.005, 0.010, sin_hz(0.1, t)));
+/// saw_hz(110.0) >> flanger(0.5, 0.005, 0.010, |t: TargetF| lerp11(0.005, 0.010, sin_hz(0.1, t)));
 /// ```
 pub fn flanger<X: Fn(f32) -> f32 + Clone + Send + Sync>(
     feedback_amount: f32,
@@ -2257,14 +2258,14 @@ pub fn flanger<X: Fn(f32) -> f32 + Clone + Send + Sync>(
 
 /// Mono phaser.
 /// `feedback_amount`: amount of feedback (for example, 0.5). Negative feedback inverts feedback phase.
-/// `phase_f`: allpass modulation value in 0...1 as function of time, for example `|t| sin_hz(0.1, t) * 0.5 + 0.5`.
+/// `phase_f`: allpass modulation value in 0...1 as function of time, for example `|t: TargetF| sin_hz(0.1, t) * 0.5 + 0.5`.
 /// - Input 0: audio
 /// - Output 0: phased audio
 ///
 /// ### Example: Phased Saw Wave
 /// ```
 /// use fundsp::hacker::*;
-/// saw_hz(110.0) >> phaser(0.5, |t| sin_hz(0.1, t) * 0.5 + 0.5);
+/// saw_hz(110.0) >> phaser(0.5, |t: TargetF| sin_hz(0.1, t) * 0.5 + 0.5);
 /// ```
 pub fn phaser<X: Fn(f32) -> f32 + Clone + Send + Sync>(
     feedback_amount: f32,
@@ -2327,7 +2328,7 @@ where
 /// ```
 /// use fundsp::hacker::*;
 /// let time = shared(0.0);
-/// timer(&time) | lfo(|t| 1.0 / (1.0 + t));
+/// timer(&time) | lfo(|t: TargetF| 1.0 / (1.0 + t));
 /// ```
 pub fn timer(shared: &Shared) -> An<Timer> {
     An(Timer::new(shared))

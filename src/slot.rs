@@ -6,6 +6,7 @@ use super::math::*;
 use super::sequencer::*;
 use super::signal::*;
 use super::*;
+use target_width::TargetU;
 use thingbuf::mpsc::{channel, Receiver, Sender};
 extern crate alloc;
 use alloc::boxed::Box;
@@ -17,7 +18,7 @@ enum SlotMessage {
     #[default]
     Nothing,
     /// Update unit using fade shape and fade time (in seconds).
-    Update(Fade, f64, Box<dyn AudioUnit>),
+    Update(Fade, TargetF, Box<dyn AudioUnit>),
     /// Return a unit for deallocation.
     #[allow(dead_code)]
     Return(Box<dyn AudioUnit>),
@@ -69,7 +70,7 @@ impl Slot {
 
     /// Set the unit. The current unit will be faded out and the new unit will be faded in
     /// simultaneously.
-    pub fn set(&mut self, fade: Fade, fade_time: f64, unit: Box<dyn AudioUnit>) {
+    pub fn set(&mut self, fade: Fade, fade_time: TargetF, unit: Box<dyn AudioUnit>) {
         assert_eq!(self.inputs, unit.inputs());
         assert_eq!(self.outputs, unit.outputs());
         // Deallocate units that were sent back.
@@ -92,15 +93,15 @@ impl Slot {
 pub struct SlotBackend {
     inputs: usize,
     outputs: usize,
-    sample_rate: f64,
+    sample_rate: TargetF,
     current: Box<dyn AudioUnit>,
     next: Option<Box<dyn AudioUnit>>,
     fade: Fade,
-    fade_time: f64,
-    fade_phase: f64,
+    fade_time: TargetF,
+    fade_phase: TargetF,
     latest: Option<Box<dyn AudioUnit>>,
     latest_fade: Fade,
-    latest_fade_time: f64,
+    latest_fade_time: TargetF,
     receiver: Receiver<SlotMessage>,
     sender: Sender<SlotMessage>,
     buffer: BufferVec,
@@ -183,7 +184,7 @@ impl AudioUnit for SlotBackend {
     }
 
     #[allow(clippy::unnecessary_cast)]
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         self.sample_rate = sample_rate;
         self.current.set_sample_rate(sample_rate);
         if let Some(next) = self.next.as_deref_mut() {
@@ -268,7 +269,7 @@ impl AudioUnit for SlotBackend {
                     *x = *y;
                 }
             }
-            self.fade_phase += n as f64 / (self.fade_time * self.sample_rate);
+            self.fade_phase += n as TargetF / (self.fade_time * self.sample_rate);
             if phase_left <= size {
                 // We don't start fading in the latest unit until the next block.
                 self.next_phase();
@@ -284,8 +285,8 @@ impl AudioUnit for SlotBackend {
         self.outputs
     }
 
-    fn get_id(&self) -> u64 {
-        const ID: u64 = 78;
+    fn get_id(&self) -> TargetU {
+        const ID: TargetU = 78;
         ID
     }
 
@@ -302,7 +303,7 @@ impl AudioUnit for SlotBackend {
         hash.hash(self.get_id())
     }
 
-    fn route(&mut self, input: &SignalFrame, frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, frequency: TargetF) -> SignalFrame {
         self.current.route(input, frequency)
     }
 

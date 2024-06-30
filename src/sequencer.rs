@@ -12,16 +12,17 @@ use alloc::boxed::Box;
 use alloc::collections::BinaryHeap;
 use alloc::vec;
 use alloc::vec::Vec;
-use core::sync::atomic::AtomicU64;
+use target_width::TargetAtomicU;
 use hashbrown::HashMap;
+use target_width::TargetU;
 use thingbuf::mpsc::{channel, Receiver, Sender};
 
 /// Globally unique ID for a sequencer event.
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct EventId(u64);
+pub struct EventId(TargetU);
 
 /// This atomic supplies globally unique IDs.
-static GLOBAL_EVENT_ID: AtomicU64 = AtomicU64::new(0);
+static GLOBAL_EVENT_ID: TargetAtomicU = TargetAtomicU::new(0);
 
 impl EventId {
     /// Create a new, globally unique event ID.
@@ -56,22 +57,22 @@ impl Fade {
 #[derive(Clone)]
 pub(crate) struct Event {
     pub unit: Box<dyn AudioUnit>,
-    pub start_time: f64,
-    pub end_time: f64,
+    pub start_time: TargetF,
+    pub end_time: TargetF,
     pub fade_ease: Fade,
-    pub fade_in: f64,
-    pub fade_out: f64,
+    pub fade_in: TargetF,
+    pub fade_out: TargetF,
     pub id: EventId,
 }
 
 impl Event {
     pub fn new(
         unit: Box<dyn AudioUnit>,
-        start_time: f64,
-        end_time: f64,
+        start_time: TargetF,
+        end_time: TargetF,
         fade_ease: Fade,
-        fade_in: f64,
-        fade_out: f64,
+        fade_in: TargetF,
+        fade_out: TargetF,
     ) -> Self {
         Self {
             unit,
@@ -107,20 +108,20 @@ impl Ord for Event {
 
 #[derive(Clone)]
 pub(crate) struct Edit {
-    pub end_time: f64,
-    pub fade_out: f64,
+    pub end_time: TargetF,
+    pub fade_out: TargetF,
 }
 
 #[inline]
 fn fade_in(
-    sample_duration: f64,
-    time: f64,
-    end_time: f64,
+    sample_duration: TargetF,
+    time: TargetF,
+    end_time: TargetF,
     start_index: usize,
     end_index: usize,
     ease: Fade,
-    fade_duration: f64,
-    fade_start_time: f64,
+    fade_duration: TargetF,
+    fade_start_time: TargetF,
     output: &mut BufferMut,
 ) {
     let fade_end_time = fade_start_time + fade_duration;
@@ -133,7 +134,7 @@ fn fade_in(
         let fade_phase = delerp(
             fade_start_time,
             fade_end_time,
-            time + start_index as f64 * sample_duration,
+            time + start_index as TargetF * sample_duration,
         ) as f32;
         let fade_d = (sample_duration / fade_duration) as f32;
         match ease {
@@ -161,14 +162,14 @@ fn fade_in(
 
 #[inline]
 fn fade_out(
-    sample_duration: f64,
-    time: f64,
-    end_time: f64,
+    sample_duration: TargetF,
+    time: TargetF,
+    end_time: TargetF,
     _start_index: usize,
     end_index: usize,
     ease: Fade,
-    fade_duration: f64,
-    fade_end_time: f64,
+    fade_duration: TargetF,
+    fade_end_time: TargetF,
     output: &mut BufferMut,
 ) {
     let fade_start_time = fade_end_time - fade_duration;
@@ -181,7 +182,7 @@ fn fade_out(
         let fade_phase = delerp(
             fade_start_time,
             fade_end_time,
-            time + fade_i as f64 * sample_duration,
+            time + fade_i as TargetF * sample_duration,
         ) as f32;
         let fade_d = (sample_duration / fade_duration) as f32;
         match ease {
@@ -213,7 +214,7 @@ pub struct Sequencer {
     /// IDs of current events.
     active_map: HashMap<EventId, usize>,
     /// Events that start before the active threshold are active.
-    active_threshold: f64,
+    active_threshold: TargetF,
     /// Future events sorted by start time.
     ready: BinaryHeap<Event>,
     /// Past events, unsorted.
@@ -223,11 +224,11 @@ pub struct Sequencer {
     /// Number of output channels.
     outputs: usize,
     /// Current time. Does not apply to frontends.
-    time: f64,
+    time: TargetF,
     /// Current sample rate.
-    sample_rate: f64,
+    sample_rate: TargetF,
     /// Current sample duration.
-    sample_duration: f64,
+    sample_duration: TargetF,
     /// Intermediate output buffer.
     buffer: BufferVec,
     /// Intermediate output frame.
@@ -272,7 +273,7 @@ impl Sequencer {
         Self {
             active: Vec::with_capacity(16384),
             active_map: HashMap::with_capacity(16384),
-            active_threshold: -f64::INFINITY,
+            active_threshold: -TargetF::INFINITY,
             ready: BinaryHeap::with_capacity(16384),
             past: Vec::with_capacity(16384),
             edit_map: HashMap::with_capacity(16384),
@@ -289,7 +290,7 @@ impl Sequencer {
 
     /// Current time in seconds.
     /// This method is not applicable to frontends, which do not process audio.
-    pub fn time(&self) -> f64 {
+    pub fn time(&self) -> TargetF {
         self.time
     }
 
@@ -298,11 +299,11 @@ impl Sequencer {
     /// Returns the ID of the event.
     pub fn push(
         &mut self,
-        start_time: f64,
-        end_time: f64,
+        start_time: TargetF,
+        end_time: TargetF,
         fade_ease: Fade,
-        fade_in_time: f64,
-        fade_out_time: f64,
+        fade_in_time: TargetF,
+        fade_out_time: TargetF,
         mut unit: Box<dyn AudioUnit>,
     ) -> EventId {
         assert_eq!(unit.inputs(), 0);
@@ -347,11 +348,11 @@ impl Sequencer {
     /// Returns the ID of the event.
     pub fn push_relative(
         &mut self,
-        start_time: f64,
-        end_time: f64,
+        start_time: TargetF,
+        end_time: TargetF,
         fade_ease: Fade,
-        fade_in_time: f64,
-        fade_out_time: f64,
+        fade_in_time: TargetF,
+        fade_out_time: TargetF,
         mut unit: Box<dyn AudioUnit>,
     ) -> EventId {
         assert!(unit.inputs() == 0 && unit.outputs() == self.outputs);
@@ -397,11 +398,11 @@ impl Sequencer {
     /// Returns the ID of the event.
     pub fn push_duration(
         &mut self,
-        start_time: f64,
-        duration: f64,
+        start_time: TargetF,
+        duration: TargetF,
         fade_ease: Fade,
-        fade_in_time: f64,
-        fade_out_time: f64,
+        fade_in_time: TargetF,
+        fade_out_time: TargetF,
         unit: Box<dyn AudioUnit>,
     ) -> EventId {
         self.push(
@@ -419,7 +420,7 @@ impl Sequencer {
     /// Edits are intended to be used with events where we do not know ahead of time
     /// how long they need to play. The original end time can be set to infinity,
     /// for example.
-    pub fn edit(&mut self, id: EventId, end_time: f64, fade_out_time: f64) {
+    pub fn edit(&mut self, id: EventId, end_time: TargetF, fade_out_time: TargetF) {
         if let Some((sender, receiver)) = &mut self.front {
             // Deallocate all past events.
             while receiver.try_recv().is_ok() {}
@@ -460,7 +461,7 @@ impl Sequencer {
     /// Edits are intended to be used with events where we do not know ahead of time
     /// how long they need to play. The original end time can be set to infinity,
     /// for example.
-    pub fn edit_relative(&mut self, id: EventId, end_time: f64, fade_out_time: f64) {
+    pub fn edit_relative(&mut self, id: EventId, end_time: TargetF, fade_out_time: TargetF) {
         if let Some((sender, receiver)) = &mut self.front {
             // Deallocate all past events.
             while receiver.try_recv().is_ok() {}
@@ -495,7 +496,7 @@ impl Sequencer {
     }
 
     /// Move units that start before the end time to the active set.
-    fn ready_to_active(&mut self, next_end_time: f64) {
+    fn ready_to_active(&mut self, next_end_time: TargetF) {
         self.active_threshold = next_end_time - self.sample_duration * 0.5;
         while let Some(ready) = self.ready.peek() {
             // Test whether start time rounded to a sample comes before the end time,
@@ -589,10 +590,10 @@ impl AudioUnit for Sequencer {
             self.active_map.clear();
         }
         self.time = 0.0;
-        self.active_threshold = -f64::INFINITY;
+        self.active_threshold = -TargetF::INFINITY;
     }
 
-    fn set_sample_rate(&mut self, sample_rate: f64) {
+    fn set_sample_rate(&mut self, sample_rate: TargetF) {
         if self.sample_rate != sample_rate {
             self.sample_rate = sample_rate;
             self.sample_duration = 1.0 / sample_rate;
@@ -611,7 +612,7 @@ impl AudioUnit for Sequencer {
                 self.ready.push(active);
             }
             self.active_map.clear();
-            self.active_threshold = -f64::INFINITY;
+            self.active_threshold = -TargetF::INFINITY;
         }
     }
 
@@ -694,7 +695,7 @@ impl AudioUnit for Sequencer {
         for channel in 0..self.outputs {
             output.channel_mut(channel)[..simd_items(size)].fill(F32x::ZERO);
         }
-        let end_time = self.time + self.sample_duration * size as f64;
+        let end_time = self.time + self.sample_duration * size as TargetF;
         self.ready_to_active(end_time);
         let mut buffer_output = self.buffer.buffer_mut();
         let mut i = 0;
@@ -768,8 +769,8 @@ impl AudioUnit for Sequencer {
         self.time = end_time;
     }
 
-    fn get_id(&self) -> u64 {
-        const ID: u64 = 64;
+    fn get_id(&self) -> TargetU {
+        const ID: TargetU = 64;
         ID
     }
 
@@ -780,7 +781,7 @@ impl AudioUnit for Sequencer {
         self.outputs
     }
 
-    fn route(&mut self, input: &SignalFrame, _frequency: f64) -> SignalFrame {
+    fn route(&mut self, input: &SignalFrame, _frequency: TargetF) -> SignalFrame {
         // Treat the sequencer as a generator.
         Routing::Generator(0.0).route(input, self.outputs())
     }
